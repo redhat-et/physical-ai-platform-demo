@@ -66,7 +66,11 @@ check_operator() {
     local version
     version="$(find_csv_version "$csv_prefix")"
     if [[ -n "$version" ]]; then
-        check_pass "$label $version (>= $min_version required)"
+        if awk "BEGIN{exit !(\"$version\" >= \"$min_version\")}"; then
+            check_pass "$label $version (>= $min_version required)"
+        else
+            check_fail "$label $version found, but >= $min_version required"
+        fi
     else
         check_fail "$label not installed (>= $min_version required) — see platform/prerequisites.md"
     fi
@@ -79,7 +83,7 @@ echo ""
 
 # --- Kuadrant CR ---
 echo "Kuadrant:"
-if oc get kuadrant -n kuadrant-system &>/dev/null 2>&1; then
+if oc get kuadrant -n kuadrant-system &>/dev/null; then
     check_pass "Kuadrant CR exists in kuadrant-system"
 else
     check_fail "Kuadrant CR not found in kuadrant-system — see platform/prerequisites.md"
