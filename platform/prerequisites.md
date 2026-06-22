@@ -10,7 +10,7 @@ they must be set up by a cluster admin.
 |----------|-------------|---------------------|---------|
 | OpenShift Container Platform | 4.19.9 | — | Gateway API CRDs (native in 4.19+) |
 | Red Hat OpenShift AI | 3.4 | `rhods-operator` | KServe, MaaS controller, Dashboard |
-| Red Hat Connectivity Link | 1.3 | `kuadrant-operator` | Kuadrant, Authorino, Limitador |
+| Red Hat Connectivity Link | 1.3 | `rhcl-operator` | Kuadrant, Authorino, Limitador |
 | cert-manager | 1.x | `openshift-cert-manager-operator` | TLS certificates |
 
 ## Required Cluster Configuration
@@ -63,18 +63,27 @@ EOF
 The DataScienceCluster CR is created by the platform's kustomize manifests —
 do **not** create one manually.
 
-### Red Hat Connectivity Link 1.3
+### Red Hat Connectivity Link
 
 ```bash
+oc create namespace kuadrant-system 2>/dev/null || true
 cat <<'EOF' | oc apply -f -
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+spec:
+  upgradeStrategy: Default
+---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
-  name: kuadrant-operator
-  namespace: openshift-operators
+  name: rhcl-operator
+  namespace: kuadrant-system
 spec:
   channel: stable
-  name: kuadrant-operator
+  name: rhcl-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
   installPlanApproval: Automatic
@@ -84,7 +93,6 @@ EOF
 After the operator is ready, create the Kuadrant CR:
 
 ```bash
-oc create namespace kuadrant-system 2>/dev/null || true
 cat <<'EOF' | oc apply -f -
 apiVersion: kuadrant.io/v1beta1
 kind: Kuadrant

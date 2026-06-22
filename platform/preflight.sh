@@ -55,8 +55,9 @@ echo "Required operators:"
 
 find_csv_version() {
     local prefix="$1"
-    oc get csv -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.version}{"\n"}{end}' 2>/dev/null \
-        | awk -F'\t' -v prefix="$prefix" '$1 ~ "^"prefix { print $2; exit }'
+    local csv_data
+    csv_data="$(oc get csv -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.version}{"\n"}{end}' 2>/dev/null)" || true
+    echo "$csv_data" | awk -F'\t' -v prefix="$prefix" '$1 ~ "^"prefix { print $2; exit }'
 }
 
 check_operator() {
@@ -77,7 +78,7 @@ check_operator() {
 }
 
 check_operator "Red Hat OpenShift AI" "rhods-operator" "3.4"
-check_operator "Red Hat Connectivity Link" "kuadrant-operator" "1.3"
+check_operator "Red Hat Connectivity Link" "rhcl-operator" "1.3"
 check_operator "cert-manager Operator" "cert-manager-operator" "1.0"
 echo ""
 
