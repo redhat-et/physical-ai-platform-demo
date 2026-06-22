@@ -6,12 +6,17 @@ they must be set up by a cluster admin.
 
 ## Required Operators
 
-| Operator | Min Version | OperatorHub Package | Purpose |
-|----------|-------------|---------------------|---------|
-| OpenShift Container Platform | 4.19.9 | — | Gateway API CRDs (native in 4.19+) |
-| Red Hat OpenShift AI | 3.4 | `rhods-operator` | KServe, MaaS controller, Dashboard |
-| Red Hat Connectivity Link | 1.3 | `rhcl-operator` | Kuadrant, Authorino, Limitador |
-| cert-manager | 1.x | `openshift-cert-manager-operator` | TLS certificates |
+| Operator | Min Version | OperatorHub Package | Catalog | Purpose |
+|----------|-------------|---------------------|---------|---------|
+| OpenShift Container Platform | 4.19.9 | — | — | Gateway API CRDs (native in 4.19+) |
+| Red Hat OpenShift AI | 3.4 | `rhods-operator` | `redhat-operators` | KServe, MaaS controller, Dashboard |
+| Red Hat Connectivity Link | 1.3 | `rhcl-operator` | `redhat-operators` | Kuadrant, Authorino, Limitador |
+| cert-manager | 1.x | `openshift-cert-manager-operator` | `redhat-operators` | TLS certificates |
+
+> **Note:** Do not install the community `kuadrant-operator` from
+> `community-operators`. It is deprecated and its CRDs are incompatible
+> with RHOAI 3.4's MaaS controller. Use `rhcl-operator` from
+> `redhat-operators` instead.
 
 ## Required Cluster Configuration
 
@@ -21,14 +26,21 @@ they must be set up by a cluster admin.
 
 ## Installation Guidance
 
-### RHOAI 3.4
+### Red Hat OpenShift AI
 
 Install from OperatorHub (Installed Operators → Red Hat OpenShift AI) or via
-CLI:
+CLI. The operator requires its own namespace with an OperatorGroup:
 
 ```bash
 oc create namespace redhat-ods-operator 2>/dev/null || true
 cat <<'EOF' | oc apply -f -
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: redhat-ods-operator
+  namespace: redhat-ods-operator
+spec: {}
+---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -43,27 +55,20 @@ spec:
 EOF
 ```
 
-Wait for the operator pod to be ready, then create the DSCInitialization (if
-one doesn't already exist):
+Wait for the CSV to reach `Succeeded`:
 
 ```bash
-cat <<'EOF' | oc apply -f -
-apiVersion: dscinitialization.opendatahub.io/v1
-kind: DSCInitialization
-metadata:
-  name: default-dsci
-spec:
-  applicationsNamespace: redhat-ods-applications
-  monitoring:
-    managementState: Managed
-    namespace: redhat-ods-monitoring
-EOF
+oc get csv -n redhat-ods-operator -w
 ```
 
-The DataScienceCluster CR is created by the platform's kustomize manifests —
-do **not** create one manually.
+The operator auto-creates a `DSCInitialization` CR. The `DataScienceCluster`
+CR is created by the platform's kustomize manifests — do **not** create one
+manually.
 
 ### Red Hat Connectivity Link
+
+The RHCL operator installs into its own namespace (`kuadrant-system`) with
+its dependency operators (Authorino, Limitador, DNS):
 
 ```bash
 oc create namespace kuadrant-system 2>/dev/null || true
@@ -90,7 +95,13 @@ spec:
 EOF
 ```
 
-After the operator is ready, create the Kuadrant CR:
+Wait for the CSV to reach `Succeeded`:
+
+```bash
+oc get csv -n kuadrant-system -w
+```
+
+Then create the Kuadrant CR:
 
 ```bash
 cat <<'EOF' | oc apply -f -
