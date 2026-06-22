@@ -1,0 +1,13 @@
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    kserve:
+      managementState: Managed
+      rawDeploymentServiceConfig: Headed
+      modelsAsService:
+        managementState: Managed
+    dashboard:
+      managementState: Managed
