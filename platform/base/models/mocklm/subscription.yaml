@@ -1,0 +1,12 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: physical-ai-dev
+  namespace: models-as-a-service
+spec:
+  models:
+    - name: physical-ai-lm
+      namespace: physical-ai-models
+  tokenRateLimit:
+    requestsPerMinute: 100
+    tokensPerMinute: 100000

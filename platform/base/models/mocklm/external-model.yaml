@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mocklm-credentials
+  namespace: physical-ai-models
+  labels:
+    inference.networking.k8s.io/bbr-managed: "true"
+type: Opaque
+stringData:
+  api-key: mock
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: physical-ai-lm
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: mocklm.physical-ai-models.svc.cluster.local:8080
+  targetModel: physical-ai-lm
+  credentialRef:
+    name: mocklm-credentials

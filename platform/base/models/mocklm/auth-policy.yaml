@@ -1,0 +1,11 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: physical-ai-dev
+  namespace: models-as-a-service
+spec:
+  models:
+    - name: physical-ai-lm
+      namespace: physical-ai-models
+  groups:
+    - system:authenticated
