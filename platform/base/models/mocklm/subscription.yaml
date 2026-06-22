@@ -4,9 +4,12 @@ metadata:
   name: physical-ai-dev
   namespace: models-as-a-service
 spec:
-  models:
+  owner:
+    groups:
+      - name: system:authenticated
+  modelRefs:
     - name: physical-ai-lm
       namespace: physical-ai-models
-  tokenRateLimit:
-    requestsPerMinute: 100
-    tokensPerMinute: 100000
+      tokenRateLimits:
+        - limit: 100000
+          window: 1h

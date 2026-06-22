@@ -3,13 +3,6 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - dsc-patch.yaml
   - maas/
   - models/
-
-patches:
-  - path: dsc-patch.yaml
-    target:
-      group: datasciencecluster.opendatahub.io
-      version: v2
-      kind: DataScienceCluster
-      name: default-dsc

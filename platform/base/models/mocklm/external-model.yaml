@@ -16,7 +16,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm.physical-ai-models.svc.cluster.local:8080
+  endpoint: mocklm.physical-ai-models.svc.cluster.local
   targetModel: physical-ai-lm
   credentialRef:
     name: mocklm-credentials

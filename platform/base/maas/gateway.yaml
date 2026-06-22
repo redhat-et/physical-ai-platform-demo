@@ -1,18 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-default-gateway-config
+  namespace: openshift-ingress
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: maas-default-gateway
   namespace: openshift-ingress
 spec:
-  gatewayClassName: openshift-default
+  gatewayClassName: data-science-gateway-class
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: maas-default-gateway-config
   listeners:
     - name: maas
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: maas-gateway-tls
+      port: 80
+      protocol: HTTP
       allowedRoutes:
         namespaces:
           from: All

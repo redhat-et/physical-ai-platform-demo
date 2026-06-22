@@ -1,11 +1,16 @@
 # Physical AI Platform Demo
 
 A proof-of-concept platform extending Red Hat OpenShift AI (RHOAI) to the
-domain of physical AI — robotics, autonomous vehicles, digital twins.
+domain of physical AI: robotics, autonomous vehicles, and digital twins.
 
-Deploys the production RHOAI Models-as-a-Service (MaaS) stack with
-Kuadrant/Red Hat Connectivity Link and registers physical AI models through
-the governed gateway.
+> [!WARNING]
+> This project is experimental and under active development. Expect breaking
+> changes.
+
+Currently deploys the RHOAI Models-as-a-Service (MaaS) stack with
+Red Hat Connectivity Link and registers physical AI models through the
+governed gateway. Future work may add simulation orchestration, digital
+twin pipelines, and on-device deployment workflows.
 
 ## Quickstart
 
@@ -42,13 +47,15 @@ physical-ai-platform-demo/
 │   ├── prerequisites.md       # what must be installed first
 │   ├── preflight.sh           # validates prerequisites
 │   ├── base/                  # shared kustomize base
-│   │   ├── maas/              # MaaS gateway, PostgreSQL
+│   │   ├── namespace.yaml     # physical-ai, physical-ai-models, models-as-a-service
+│   │   ├── dsc-patch.yaml     # DataScienceCluster (enables KServe + MaaS)
+│   │   ├── maas/              # MaaS gateway, tenant, PostgreSQL
 │   │   └── models/            # model registrations
 │   │       └── mocklm/        # mock LM (OpenAI-compatible)
 │   └── overlays/              # per-environment overlays
 │       ├── dev/               # minimal, no GPU
-│       ├── dev-gpu/           # GPU-enabled
-│       └── demo/              # full demo
+│       ├── dev-gpu/           # GPU-enabled (planned)
+│       └── demo/              # full demo (planned)
 ├── docs/                      # design specs and plans
 └── notes/                     # gitignored: local snapshots, research
 ```
