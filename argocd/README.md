@@ -128,25 +128,3 @@ oc apply -f argocd/permissions.yaml
 oc delete application physical-ai-platform-dev-gpu -n openshift-gitops
 oc apply -f argocd/application-dev-gpu.yaml
 ```
-
-## Deploying Models via GitOps
-
-To deploy DreamZero through ArgoCD:
-
-1. **Ensure ServingRuntime exists:**
-   ```bash
-   oc apply -f platform/base/models/dreamzero/servingruntime-fixed.yaml
-   ```
-
-2. **Add InferenceService to kustomization** (if not already there)
-
-3. **Commit and push:**
-   ```bash
-   git add platform/base/models/dreamzero/
-   git commit -m "Add DreamZero model deployment"
-   git push
-   ```
-
-4. **ArgoCD auto-syncs** and deploys DreamZero
-
-See `platform/base/models/dreamzero/README.md` for DreamZero-specific details.

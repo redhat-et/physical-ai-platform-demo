@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
-  name: vllm-omni-runtime-fixed
+  name: vllm-omni-runtime
   namespace: physical-ai-models
   labels:
     opendatahub.io/dashboard: "true"

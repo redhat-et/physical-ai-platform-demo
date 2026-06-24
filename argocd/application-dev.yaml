@@ -10,7 +10,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/rmalone8/physical-ai-platform-demo.git
+    repoURL: https://github.com/redhat-et/physical-ai-platform-demo.git
     targetRevision: main
     path: platform/overlays/dev
 

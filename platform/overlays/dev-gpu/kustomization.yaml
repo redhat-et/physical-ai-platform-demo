@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - ../../base
+  #- ../../base/models/dreamzero/ # turns on dreamzero for dev-gpu

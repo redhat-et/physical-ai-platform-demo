@@ -10,6 +10,9 @@ metadata:
     sidecar.istio.io/inject: "false"
 spec:
   predictor:
+    # Force scheduling on L40S GPU nodes (48GB VRAM required)
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-L40S
     # Add /dev/shm volume for multiprocessing
     volumes:
     - name: dshm
@@ -19,7 +22,7 @@ spec:
     model:
       modelFormat:
         name: pytorch
-      runtime: vllm-omni-runtime-fixed
+      runtime: vllm-omni-runtime
       storageUri: hf://GEAR-Dreams/DreamZero-DROID
       volumeMounts:
       - name: dshm
