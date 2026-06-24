@@ -1,0 +1,35 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: dreamzero-isvc
+  namespace: physical-ai-models
+  annotations:
+    # Use RawDeployment mode (not Serverless/Knative)
+    serving.kserve.io/deploymentMode: RawDeployment
+    # Disable Istio sidecar injection to prevent multiprocessing interference
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    # Add /dev/shm volume for multiprocessing
+    volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi
+    model:
+      modelFormat:
+        name: pytorch
+      runtime: vllm-omni-runtime-fixed
+      storageUri: hf://GEAR-Dreams/DreamZero-DROID
+      volumeMounts:
+      - name: dshm
+        mountPath: /dev/shm
+      resources:
+        requests:
+          cpu: "4"
+          memory: 32Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "8"
+          memory: 64Gi
+          nvidia.com/gpu: "1"

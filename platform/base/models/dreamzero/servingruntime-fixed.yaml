@@ -1,0 +1,61 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-omni-runtime-fixed
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: quay.io/vllm/automation-vllm-omni:cuda-27760112356
+    # KEY CHANGE: Use bash wrapper instead of direct exec
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      # Unset HF_HUB_OFFLINE which is set in the container image
+      # This is critical for vLLM omni orchestrator initialization
+      unset HF_HUB_OFFLINE
+
+      # Start vLLM with all required flags
+      vllm serve /mnt/models \
+        --omni \
+        --port=8080 \
+        --served-model-name={{.Name}} \
+        --enforce-eager \
+        --disable-log-stats
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /tmp/torch_cache
+    - name: ATTENTION_BACKEND
+      value: torch
+    - name: DIFFUSION_ATTENTION_BACKEND
+      value: TORCH_SDPA
+    resources:
+      requests:
+        cpu: "2"
+        memory: 32Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "8"
+        memory: 64Gi
+        nvidia.com/gpu: "1"
+  # Define volumes at the ServingRuntime level for /dev/shm
+  volumes:
+  - name: dshm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 8Gi
+  supportedModelFormats:
+  - name: pytorch
+    version: "2"
+    autoSelect: true
+  - name: vllm
+    autoSelect: true
