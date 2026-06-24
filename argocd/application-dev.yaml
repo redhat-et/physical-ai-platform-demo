@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: physical-ai-platform-dev
+  namespace: openshift-gitops
+  labels:
+    environment: dev
+    profile: standard
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/rmalone8/physical-ai-platform-demo.git
+    targetRevision: main
+    path: platform/overlays/dev
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: physical-ai
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: datasciencecluster.opendatahub.io
+      kind: DataScienceCluster
+      jsonPointers:
+        - /status
+    - group: serving.kserve.io
+      kind: InferenceService
+      jsonPointers:
+        - /status
+    - group: apps
+      kind: StatefulSet
+      name: maas-db
+      jsonPointers:
+        - /spec/replicas

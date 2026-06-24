@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: physical-ai-platform-dev-gpu
+  namespace: openshift-gitops
+  labels:
+    environment: dev
+    profile: gpu
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/redhat-et/physical-ai-platform-demo.git
+    targetRevision: main
+    path: platform/overlays/dev-gpu
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: physical-ai
+
+  syncPolicy:
+    automated:
+      prune: true        # Delete resources removed from git
+      selfHeal: true     # Revert manual changes to match git
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in fields that are expected to change
+  ignoreDifferences:
+    # DataScienceCluster gets updated by operators
+    - group: datasciencecluster.opendatahub.io
+      kind: DataScienceCluster
+      jsonPointers:
+        - /status
+    # InferenceService status changes frequently
+    - group: serving.kserve.io
+      kind: InferenceService
+      jsonPointers:
+        - /status
+    # StatefulSet replicas may be scaled manually for testing
+    - group: apps
+      kind: StatefulSet
+      name: maas-db
+      jsonPointers:
+        - /spec/replicas
