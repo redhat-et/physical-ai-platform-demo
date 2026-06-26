@@ -1,0 +1,45 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: cosmos3-nano-isvc
+  namespace: physical-ai-models
+  annotations:
+    # Use RawDeployment mode (not Serverless/Knative)
+    serving.kserve.io/deploymentMode: RawDeployment
+    # Disable Istio sidecar injection to prevent multiprocessing interference
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    # Force scheduling on L40S GPU nodes (48GB VRAM)
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-L40S
+    # Add /dev/shm volume for multiprocessing
+    volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi
+    model:
+      # Add HF_TOKEN for model download and guardrail access
+      env:
+      - name: HF_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: huggingface-token
+            key: HF_TOKEN
+      modelFormat:
+        name: pytorch
+      runtime: cosmos3-vllm-omni-runtime
+      storageUri: hf://nvidia/Cosmos3-Nano
+      volumeMounts:
+      - name: dshm
+        mountPath: /dev/shm
+      resources:
+        requests:
+          cpu: "8"
+          memory: 64Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "1"

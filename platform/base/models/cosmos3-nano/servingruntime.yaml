@@ -1,0 +1,78 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: cosmos3-vllm-omni-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: quay.io/vllm/automation-vllm-omni:cuda-27760112356
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      set -e
+
+      # Install system dependencies required by cosmos_guardrail (OpenCV)
+      microdnf install -y libxcb libGL libgomp
+
+      # Install cosmos_guardrail without dependencies to preserve torch version
+      pip install --target=/tmp/packages --no-deps cosmos_guardrail
+
+      # Install guardrail dependencies (excluding torch to avoid conflicts)
+      pip install --target=/tmp/packages --no-deps \
+        attrs better-profanity nltk opencv-python peft pillow \
+        requests retinaface-py safetensors scikit-image \
+        sentencepiece tqdm
+
+      # Unset HF_HUB_OFFLINE to allow downloading Cosmos-1.0-Guardrail model
+      unset HF_HUB_OFFLINE
+
+      # Start vLLM with Cosmos3-specific optimizations
+      export PYTHONPATH=/tmp/packages:$PYTHONPATH
+      vllm serve /mnt/models \
+        --omni \
+        --port=8080 \
+        --served-model-name={{.Name}} \
+        --enforce-eager \
+        --disable-log-stats \
+        --enable-layerwise-offload
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /tmp/torch_cache
+    - name: ATTENTION_BACKEND
+      value: torch
+    - name: DIFFUSION_ATTENTION_BACKEND
+      value: TORCH_SDPA
+    resources:
+      requests:
+        cpu: "2"
+        memory: 32Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "8"
+        memory: 64Gi
+        nvidia.com/gpu: "1"
+  # /dev/shm volume for shared memory
+  volumes:
+  - name: dshm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 8Gi
+  supportedModelFormats:
+  - name: pytorch
+    version: "2"
+    autoSelect: true
+  - name: vllm
+    autoSelect: true
