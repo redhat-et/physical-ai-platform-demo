@@ -18,14 +18,11 @@ spec:
           set -e
           echo "Installing huggingface_hub..."
           pip install -q huggingface_hub
-          
           echo "Downloading nvidia/Cosmos3-Nano model..."
           python3 << 'PYEOF'
           from huggingface_hub import snapshot_download
           import os
-          
           token = os.getenv('HF_TOKEN')
-          
           print("Starting model download to /mnt/models...")
           snapshot_download(
               repo_id='nvidia/Cosmos3-Nano',
@@ -34,13 +31,11 @@ spec:
               resume_download=True
           )
           print("Model download completed successfully!")
-          
           # Verify model files exist
           import os
           model_files = os.listdir('/mnt/models')
           print(f"Downloaded {len(model_files)} files/directories")
           PYEOF
-          
           echo "Download job finished successfully"
         env:
         - name: HF_TOKEN
