@@ -73,6 +73,34 @@ physical-ai-platform-demo/
 
 To add models to the catalog, see [docs/adding-models.md](docs/adding-models.md).
 
+## Development
+
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) — runs Python tools (yamllint) without a venv
+- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/) — builds overlay manifests
+- [kubeconform](https://github.com/yannh/kubeconform) — validates manifests against K8s schemas
+
+On macOS: `brew install uv kustomize kubeconform`
+
+### Validation
+
+Run all checks (YAML lint, kustomize build, kubeconform):
+
+```bash
+make validate
+```
+
+Or run individual targets:
+
+```bash
+make lint              # YAML syntax and style
+make kustomize-build   # build all overlays
+make kubeconform       # schema validation
+```
+
+CI runs `make validate` on every PR that touches `platform/`.
+
 ## Removing the Platform
 
 ```bash

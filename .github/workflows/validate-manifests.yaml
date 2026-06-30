@@ -1,0 +1,25 @@
+name: Validate Manifests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+    - platform/**
+    - Makefile
+    - .yamllint.yaml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: astral-sh/setup-uv@v6
+
+    - uses: yokawasa/action-setup-kube-tools@v0.11.2
+      with:
+        kustomize: '5.6.0'
+        kubeconform: '0.6.7'
+
+    - name: Validate
+      run: make validate
