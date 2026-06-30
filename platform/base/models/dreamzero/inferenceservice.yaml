@@ -10,7 +10,7 @@ metadata:
     sidecar.istio.io/inject: "false"
 spec:
   predictor:
-    # Force scheduling on L40S GPU nodes (48GB VRAM required)
+    minReplicas: 0
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
     # Add /dev/shm volume for multiprocessing
