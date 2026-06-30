@@ -29,7 +29,7 @@ spec:
             key: HF_TOKEN
       modelFormat:
         name: pytorch
-      runtime: cosmos3-vllm-omni-runtime
+      runtime: vllm-omni-cosmos3-runtime
       storageUri: hf://nvidia/Cosmos3-Nano
       volumeMounts:
       - name: dshm
