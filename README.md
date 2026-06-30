@@ -1,31 +1,39 @@
 # Physical AI Platform Demo
 
-A proof-of-concept platform extending Red Hat OpenShift AI (RHOAI) to the
-domain of physical AI: robotics, autonomous vehicles, and digital twins.
+A proof-of-concept platform extending Red Hat OpenShift AI (RHOAI) to
+physical AI, focusing on video analytics and robotics use cases.
 
 > [!WARNING]
 > This project is experimental and under active development. Expect breaking
 > changes.
 
-Currently deploys the RHOAI Models-as-a-Service (MaaS) stack with
-Red Hat Connectivity Link and registers physical AI models through the
-governed gateway. Future work may add simulation orchestration, digital
-twin pipelines, and on-device deployment workflows.
+Deploys the RHOAI Models-as-a-Service (MaaS) stack with Red Hat
+Connectivity Link, providing a model catalog where users request an
+endpoint and KServe handles scale-to-zero / scale-from-zero on demand.
+Models are served through vLLM-Omni or partner runtimes.
 
 ## Quickstart
 
-```bash
-# 1. Validate prerequisites
-./platform/preflight.sh
+See [platform/prerequisites.md](platform/prerequisites.md) for operator and
+cluster requirements. Run `./platform/preflight.sh` to validate.
 
-# 2. Deploy (pick one profile)
+### GitOps (recommended)
+
+Apply the ArgoCD Application for your chosen profile — see
+[argocd/README.md](argocd/README.md) for details:
+
+```bash
+oc apply -f argocd/application-dev-gpu.yaml
+oc apply -f argocd/permissions.yaml
+```
+
+### Manual
+
+```bash
 oc apply -k platform/overlays/dev        # no GPU, mock models
 oc apply -k platform/overlays/dev-gpu    # with GPU, real model serving
 oc apply -k platform/overlays/demo       # full demo environment
 ```
-
-See [platform/prerequisites.md](platform/prerequisites.md) for what must be
-installed before deploying.
 
 ## Environment Profiles
 
@@ -41,7 +49,7 @@ meeting the prerequisites can run any profile.
 
 ## Repository Layout
 
-```
+```text
 physical-ai-platform-demo/
 ├── platform/                  # deployable manifests
 │   ├── prerequisites.md       # what must be installed first
@@ -50,15 +58,20 @@ physical-ai-platform-demo/
 │   │   ├── namespace.yaml     # physical-ai, physical-ai-models, models-as-a-service
 │   │   ├── dsc-patch.yaml     # DataScienceCluster (enables KServe + MaaS)
 │   │   ├── maas/              # MaaS gateway, tenant, PostgreSQL
-│   │   └── models/            # model registrations
-│   │       └── mocklm/        # mock LM (OpenAI-compatible)
+│   │   └── models/            # model catalog (each model = subdirectory)
+│   │       ├── mocklm/        # mock LM (OpenAI-compatible, no GPU)
+│   │       ├── cosmos3-nano/  # NVIDIA Cosmos 3 Nano world model
+│   │       └── dreamzero/     # DreamZero robot policy model
 │   └── overlays/              # per-environment overlays
 │       ├── dev/               # minimal, no GPU
-│       ├── dev-gpu/           # GPU-enabled (planned)
-│       └── demo/              # full demo (planned)
-├── docs/                      # design specs and plans
+│       ├── dev-gpu/           # GPU-enabled development
+│       └── demo/              # full demo with all models
+├── argocd/                    # ArgoCD Application CRs and RBAC
+├── docs/                      # guides (e.g. adding-models.md)
 └── notes/                     # gitignored: local snapshots, research
 ```
+
+To add models to the catalog, see [docs/adding-models.md](docs/adding-models.md).
 
 ## Removing the Platform
 
