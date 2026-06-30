@@ -74,11 +74,25 @@ oc logs -n physical-ai-models <pod>               # debug a model server
 oc get applications -n openshift-gitops           # check ArgoCD sync status
 ```
 
+## Validation
+
+Run `make validate` before committing to catch YAML and Kustomize errors locally. It runs the same checks as CI:
+
+```bash
+make validate        # all checks: lint + kustomize-build + kubeconform
+make lint            # yamllint only
+make kustomize-build # build all overlays (dev, dev-gpu, demo)
+make kubeconform     # schema-validate rendered manifests against K8s + CRD schemas
+```
+
+Requires `yamllint` (via `uvx`), `kustomize` (or `oc`), and `kubeconform`.
+
 ## Code Style
 
-- [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
+- Conventional Commits for commit messages (<https://www.conventionalcommits.org/>)
 - YAML: 2-space indent
 - Namespace always set explicitly in manifests — don't rely on Kustomize's namespace transformer
+- **Always work on feature branches** — never push directly to `main`; all changes go through PRs
 
 ## What NOT to Do
 

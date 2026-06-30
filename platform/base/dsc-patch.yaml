@@ -13,3 +13,13 @@ spec:
       managementState: Managed
     dashboard:
       managementState: Managed
+    workbenches:
+      managementState: Managed
+    aipipelines:
+      managementState: Managed
+    trustyai:
+      managementState: Managed
+    feastoperator:
+      managementState: Managed
+    mlflowoperator:
+      managementState: Managed
