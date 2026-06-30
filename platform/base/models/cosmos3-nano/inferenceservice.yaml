@@ -20,7 +20,7 @@ spec:
         medium: Memory
         sizeLimit: 8Gi
     model:
-      # Add HF_TOKEN for model download and guardrail access
+      # Add HF_TOKEN for guardrail access
       env:
       - name: HF_TOKEN
         valueFrom:
@@ -30,7 +30,7 @@ spec:
       modelFormat:
         name: pytorch
       runtime: vllm-omni-cosmos3-runtime
-      storageUri: hf://nvidia/Cosmos3-Nano
+      storageUri: pvc://cosmos3-model-cache
       volumeMounts:
       - name: dshm
         mountPath: /dev/shm
