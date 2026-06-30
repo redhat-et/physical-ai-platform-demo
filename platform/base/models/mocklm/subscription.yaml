@@ -8,7 +8,22 @@ spec:
     groups:
       - name: system:authenticated
   modelRefs:
-    - name: physical-ai-lm
+    - name: mocklm-echo
+      namespace: physical-ai-models
+      tokenRateLimits:
+        - limit: 100000
+          window: 1h
+    - name: mocklm-eliza
+      namespace: physical-ai-models
+      tokenRateLimits:
+        - limit: 100000
+          window: 1h
+    - name: mocklm-detect
+      namespace: physical-ai-models
+      tokenRateLimits:
+        - limit: 100000
+          window: 1h
+    - name: mocklm-describe
       namespace: physical-ai-models
       tokenRateLimits:
         - limit: 100000

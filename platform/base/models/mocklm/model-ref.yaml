@@ -1,9 +1,39 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: physical-ai-lm
+  name: mocklm-echo
   namespace: physical-ai-models
 spec:
   modelRef:
     kind: ExternalModel
-    name: physical-ai-lm
+    name: mocklm-echo
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: mocklm-eliza
+  namespace: physical-ai-models
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: mocklm-eliza
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: mocklm-detect
+  namespace: physical-ai-models
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: mocklm-detect
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: mocklm-describe
+  namespace: physical-ai-models
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: mocklm-describe

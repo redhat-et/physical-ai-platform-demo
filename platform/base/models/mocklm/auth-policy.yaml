@@ -5,7 +5,13 @@ metadata:
   namespace: models-as-a-service
 spec:
   modelRefs:
-    - name: physical-ai-lm
+    - name: mocklm-echo
+      namespace: physical-ai-models
+    - name: mocklm-eliza
+      namespace: physical-ai-models
+    - name: mocklm-detect
+      namespace: physical-ai-models
+    - name: mocklm-describe
       namespace: physical-ai-models
   subjects:
     groups:
