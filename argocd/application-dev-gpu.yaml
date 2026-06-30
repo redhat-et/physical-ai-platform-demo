@@ -39,11 +39,14 @@ spec:
       kind: DataScienceCluster
       jsonPointers:
         - /status
-    # InferenceService status changes frequently
+    # KServe controller mutates annotations on InferenceServices
     - group: serving.kserve.io
       kind: InferenceService
       jsonPointers:
         - /status
+        - /metadata/annotations/serving.kserve.io~1deploymentMode
+        - /metadata/annotations/modelFormat
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
     # StatefulSet replicas may be scaled manually for testing
     - group: apps
       kind: StatefulSet

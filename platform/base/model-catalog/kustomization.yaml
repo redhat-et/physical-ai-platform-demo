@@ -1,6 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+commonLabels:
+  app: model-catalog
+  app.kubernetes.io/component: model-catalog
+  app.kubernetes.io/created-by: model-registry-operator
+  app.kubernetes.io/instance: model-catalog
+  app.kubernetes.io/managed-by: model-registry-operator
+  app.kubernetes.io/name: model-catalog
+  app.kubernetes.io/part-of: model-catalog
+  component: model-catalog
+
 configMapGenerator:
 - name: model-catalog-sources
   namespace: rhoai-model-registries
