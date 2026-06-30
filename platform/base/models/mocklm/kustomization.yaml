@@ -2,7 +2,11 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - inferenceservice.yaml
+  - servingruntime.yaml
+  - mocklm-echo.yaml
+  - mocklm-eliza.yaml
+  - mocklm-detect.yaml
+  - mocklm-describe.yaml
   - external-model.yaml
   - model-ref.yaml
   - subscription.yaml

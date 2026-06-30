@@ -1,0 +1,20 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: mocklm-detect
+  namespace: physical-ai-models
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    minReplicas: 0
+    model:
+      modelFormat:
+        name: mocklm
+      runtime: mocklm-runtime
+      env:
+      - name: MOCKLM_MODE
+        value: detect
+      - name: MOCKLM_MODEL_NAME
+        value: mocklm-detect
