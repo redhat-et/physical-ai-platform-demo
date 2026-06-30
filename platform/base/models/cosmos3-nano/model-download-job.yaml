@@ -57,4 +57,3 @@ spec:
       - name: model-storage
         persistentVolumeClaim:
           claimName: cosmos3-model-cache
-          
