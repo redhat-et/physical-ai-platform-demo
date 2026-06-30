@@ -10,7 +10,7 @@ metadata:
     sidecar.istio.io/inject: "false"
 spec:
   predictor:
-    # Force scheduling on L40S GPU nodes (48GB VRAM)
+    minReplicas: 0
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
     # Add /dev/shm volume for multiprocessing
@@ -29,7 +29,7 @@ spec:
             key: HF_TOKEN
       modelFormat:
         name: pytorch
-      runtime: cosmos3-vllm-omni-runtime
+      runtime: vllm-omni-cosmos3-runtime
       storageUri: hf://nvidia/Cosmos3-Nano
       volumeMounts:
       - name: dshm

@@ -12,11 +12,47 @@ stringData:
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
 metadata:
-  name: physical-ai-lm
+  name: mocklm-echo
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm.physical-ai-models.svc.cluster.local
-  targetModel: physical-ai-lm
+  endpoint: mocklm-echo-predictor.physical-ai-models.svc.cluster.local
+  targetModel: mocklm-echo
+  credentialRef:
+    name: mocklm-credentials
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: mocklm-eliza
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: mocklm-eliza-predictor.physical-ai-models.svc.cluster.local
+  targetModel: mocklm-eliza
+  credentialRef:
+    name: mocklm-credentials
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: mocklm-detect
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: mocklm-detect-predictor.physical-ai-models.svc.cluster.local
+  targetModel: mocklm-detect
+  credentialRef:
+    name: mocklm-credentials
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: mocklm-describe
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: mocklm-describe-predictor.physical-ai-models.svc.cluster.local
+  targetModel: mocklm-describe
   credentialRef:
     name: mocklm-credentials

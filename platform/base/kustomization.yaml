@@ -6,3 +6,4 @@ resources:
   - dsc-patch.yaml
   - maas/
   - models/
+  - model-catalog/

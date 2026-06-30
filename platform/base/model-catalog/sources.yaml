@@ -1,0 +1,7 @@
+catalogs:
+- name: Physical AI Platform
+  id: physical_ai_platform
+  type: yaml
+  enabled: true
+  properties:
+    yamlCatalogPath: catalog.yaml

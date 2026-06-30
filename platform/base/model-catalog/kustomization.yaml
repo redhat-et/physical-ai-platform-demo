@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+- name: model-catalog-sources
+  namespace: rhoai-model-registries
+  behavior: create
+  files:
+  - sources.yaml
+  - catalog.yaml
+  options:
+    disableNameSuffixHash: true

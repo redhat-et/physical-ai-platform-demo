@@ -1,6 +1,15 @@
 apiVersion: v1
 kind: Secret
 metadata:
+  name: maas-db-admin-credentials
+  namespace: physical-ai
+type: Opaque
+stringData:
+  POSTGRESQL_ADMIN_PASSWORD: maas-admin-dev-password
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: maas-db-credentials
   namespace: physical-ai
 type: Opaque
@@ -46,6 +55,8 @@ spec:
             - containerPort: 5432
           envFrom:
             - secretRef:
+                name: maas-db-admin-credentials
+            - secretRef:
                 name: maas-db-credentials
           resources:
             requests:
@@ -71,6 +82,7 @@ spec:
           requests:
             storage: 1Gi
 ---
+# Password below must match POSTGRESQL_PASSWORD in maas-db-credentials
 apiVersion: v1
 kind: Secret
 metadata:

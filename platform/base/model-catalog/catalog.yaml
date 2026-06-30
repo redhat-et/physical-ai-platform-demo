@@ -1,0 +1,54 @@
+source: Physical AI Platform
+models:
+- name: mocklm-echo
+  description: >-
+    Mock LLM in echo mode. Returns the user's input back as the model response.
+    Useful as a lightweight stand-in for any OpenAI-compatible LLM endpoint.
+  provider: Physical AI Demo
+  license: apache-2.0
+  licenseLink: https://www.apache.org/licenses/LICENSE-2.0.txt
+  artifacts: []
+- name: mocklm-eliza
+  description: >-
+    Mock conversational model using ELIZA-style pattern matching.
+    Responds with reflective questions, simulating a simple chatbot.
+  provider: Physical AI Demo
+  license: apache-2.0
+  licenseLink: https://www.apache.org/licenses/LICENSE-2.0.txt
+  artifacts: []
+- name: mocklm-detect
+  description: >-
+    Mock object detection model. Returns synthetic bounding boxes for
+    objects in images via an OpenAI-compatible vision API.
+  provider: Physical AI Demo
+  license: apache-2.0
+  licenseLink: https://www.apache.org/licenses/LICENSE-2.0.txt
+  artifacts: []
+- name: mocklm-describe
+  description: >-
+    Mock scene description model. Returns synthetic scene descriptions
+    for images via an OpenAI-compatible vision API.
+  provider: Physical AI Demo
+  license: apache-2.0
+  licenseLink: https://www.apache.org/licenses/LICENSE-2.0.txt
+  artifacts: []
+- name: nvidia/Cosmos3-Nano
+  description: >-
+    NVIDIA Cosmos3 Nano world foundation model for physical AI.
+    Generates video from text or image prompts, enabling world simulation
+    for robotics and autonomous systems.
+  provider: NVIDIA
+  license: nvidia-open-model-license
+  licenseLink: https://developer.nvidia.com/open-model-license
+  artifacts:
+  - uri: https://huggingface.co/nvidia/Cosmos3-Nano
+- name: GEAR-Dreams/DreamZero-DROID
+  description: >-
+    DreamZero robotic action prediction model trained on the DROID dataset.
+    Predicts robot action trajectories from observation sequences for
+    manipulation tasks.
+  provider: GEAR-Dreams
+  license: apache-2.0
+  licenseLink: https://www.apache.org/licenses/LICENSE-2.0.txt
+  artifacts:
+  - uri: https://huggingface.co/GEAR-Dreams/DreamZero-DROID

@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
-  name: cosmos3-vllm-omni-runtime
+  name: vllm-omni-cosmos3-runtime
   namespace: physical-ai-models
   labels:
     opendatahub.io/dashboard: "true"

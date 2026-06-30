@@ -9,5 +9,7 @@ spec:
       rawDeploymentServiceConfig: Headed
       modelsAsService:
         managementState: Managed
+    modelregistry:
+      managementState: Managed
     dashboard:
       managementState: Managed
