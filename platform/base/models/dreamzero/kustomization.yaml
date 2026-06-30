@@ -4,3 +4,6 @@ kind: Kustomization
 resources:
   - servingruntime.yaml
   - inferenceservice.yaml
+  - model-ref.yaml
+  - subscription.yaml
+  - auth-policy.yaml

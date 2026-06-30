@@ -1,0 +1,15 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: cosmos3-nano-subscription
+  namespace: models-as-a-service
+spec:
+  owner:
+    groups:
+      - name: system:authenticated
+  modelRefs:
+    - name: cosmos3-nano
+      namespace: physical-ai-models
+      tokenRateLimits:
+        - limit: 100000
+          window: 1h
