@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: cosmos3-nano-isvc
+  name: cosmos3-nano
   namespace: physical-ai-models
   annotations:
     # Use RawDeployment mode (not Serverless/Knative)

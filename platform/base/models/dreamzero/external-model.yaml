@@ -1,19 +1,19 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
 metadata:
-  name: cosmos3-nano
+  name: dreamzero
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: cosmos3-nano-predictor.physical-ai-models.svc.cluster.local
-  targetModel: cosmos3-nano
+  endpoint: dreamzero-predictor.physical-ai-models.svc.cluster.local
+  targetModel: dreamzero
   credentialRef:
-    name: cosmos3-credentials
+    name: dreamzero-credentials
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: cosmos3-credentials
+  name: dreamzero-credentials
   namespace: physical-ai-models
   labels:
     inference.networking.k8s.io/bbr-managed: "true"
