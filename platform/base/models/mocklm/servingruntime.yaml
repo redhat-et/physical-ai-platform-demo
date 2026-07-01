@@ -3,6 +3,8 @@ kind: ServingRuntime
 metadata:
   name: mocklm-runtime
   namespace: physical-ai-models
+  annotations:
+    serving.kserve.io/servingruntime: vllm
   labels:
     opendatahub.io/dashboard: "true"
 spec:
