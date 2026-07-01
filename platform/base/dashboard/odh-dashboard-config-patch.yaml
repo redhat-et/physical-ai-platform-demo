@@ -5,5 +5,6 @@ metadata:
   namespace: redhat-ods-applications
 spec:
   dashboardConfig:
+    disableKServeMetrics: false
     genAiStudio: true
     modelAsService: true

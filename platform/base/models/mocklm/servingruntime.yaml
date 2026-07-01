@@ -6,9 +6,12 @@ metadata:
   labels:
     opendatahub.io/dashboard: "true"
 spec:
+  annotations:
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
   containers:
   - name: kserve-container
-    image: quay.io/fzdarsky/mocklm:latest
+    image: quay.io/fzdarsky/mocklm:0.2.2
     ports:
     - containerPort: 8080
       protocol: TCP

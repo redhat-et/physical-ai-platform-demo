@@ -140,7 +140,7 @@ ArgoCD. These must be provisioned before deployment.
 | `maas-db-config` | `redhat-ods-applications` | MaaS DB connection URL |
 | `mlflow-db-admin-credentials` | `physical-ai` | PostgreSQL admin password for MLflow DB |
 | `mlflow-db-credentials` | `physical-ai` | MLflow DB user, password, database name |
-| `mlflow-db-connection` | `physical-ai` | MLflow DB connection URL |
+| `mlflow-db-connection` | `redhat-ods-applications` | MLflow DB connection URL |
 
 Use `--generate-secrets` to create them with random passwords:
 

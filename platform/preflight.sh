@@ -218,7 +218,7 @@ check_db_secrets() {
 
 #                  prefix    db_name  db_ns          conn_secret         conn_ns
 check_db_secrets   "maas"    "maas"   "physical-ai"  "maas-db-config"    "redhat-ods-applications"
-check_db_secrets   "mlflow"  "mlflow" "physical-ai"  "mlflow-db-connection" "physical-ai"
+check_db_secrets   "mlflow"  "mlflow" "physical-ai"  "mlflow-db-connection" "redhat-ods-applications"
 echo ""
 
 # --- Summary ---
