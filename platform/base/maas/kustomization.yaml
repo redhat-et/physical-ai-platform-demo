@@ -5,3 +5,5 @@ resources:
   - gateway.yaml
   - tenant.yaml
   - postgresql.yaml
+  - maas-proxy.yaml
+  - maas-proxy-allowlist.yaml
