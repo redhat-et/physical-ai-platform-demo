@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-proxy-allowlist
+  namespace: physical-ai-models
+data:
+  model-allowlist.conf: |
+    # Allowlist of valid model names — add new models here
+    map $model $backend {
+      mocklm-describe  mocklm-describe-predictor.physical-ai-models.svc.cluster.local;
+      mocklm-detect    mocklm-detect-predictor.physical-ai-models.svc.cluster.local;
+      mocklm-echo      mocklm-echo-predictor.physical-ai-models.svc.cluster.local;
+      mocklm-eliza     mocklm-eliza-predictor.physical-ai-models.svc.cluster.local;
+      cosmos3-nano     cosmos3-nano-predictor.physical-ai-models.svc.cluster.local;
+      dreamzero        dreamzero-predictor.physical-ai-models.svc.cluster.local;
+      default          "";
+    }

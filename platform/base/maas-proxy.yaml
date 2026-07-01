@@ -12,6 +12,8 @@ data:
       # Generic upstream resolver for dynamic model names
       resolver 172.30.0.10 valid=10s;  # OpenShift DNS
 
+      include /etc/nginx/conf.d/model-allowlist.conf;
+
       server {
         listen 443 ssl;
         server_name _;
@@ -21,8 +23,9 @@ data:
 
         # Generic location for all models: /physical-ai-models/<model-name>/*
         location ~ ^/physical-ai-models/(?<model>[^/]+)(?<path>/.*)?$ {
-          # Dynamically construct backend based on model name
-          set $backend "${model}-predictor.physical-ai-models.svc.cluster.local";
+          if ($backend = "") {
+            return 404;
+          }
           proxy_pass http://$backend:80$path;
           proxy_set_header Host $http_host;
           proxy_set_header X-Real-IP $remote_addr;
@@ -74,6 +77,9 @@ spec:
         - name: config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
+        - name: allowlist
+          mountPath: /etc/nginx/conf.d/model-allowlist.conf
+          subPath: model-allowlist.conf
         - name: tls
           mountPath: /etc/tls
           readOnly: true
@@ -88,6 +94,9 @@ spec:
       - name: config
         configMap:
           name: maas-proxy-config
+      - name: allowlist
+        configMap:
+          name: maas-proxy-allowlist
       - name: tls
         secret:
           secretName: maas-proxy-tls

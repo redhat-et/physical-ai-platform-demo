@@ -6,5 +6,6 @@ resources:
   - dsc-patch.yaml
   - maas/
   - maas-proxy.yaml
+  - maas-proxy-allowlist.yaml
   - models/
   - model-catalog/
