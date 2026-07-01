@@ -60,7 +60,7 @@ See `platform/prerequisites.md` for operator and cluster requirements:
 - cert-manager Operator 1.x
 - OpenShift 4.19.9+ (for native Gateway API CRDs)
 
-Run `./platform/preflight.sh` to validate.
+Run `./platform/preflight.sh` to validate. Use `--generate-secrets` to create required database secrets (MaaS, MLflow) with random passwords if not already present.
 
 ## Cluster Access
 
