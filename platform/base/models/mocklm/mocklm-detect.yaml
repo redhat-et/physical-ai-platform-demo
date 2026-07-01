@@ -3,6 +3,9 @@ kind: InferenceService
 metadata:
   name: mocklm-detect
   namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
     sidecar.istio.io/inject: "false"
