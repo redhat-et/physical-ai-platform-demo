@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: dreamzero-isvc
+  name: dreamzero
   namespace: physical-ai-models
   annotations:
     # Use RawDeployment mode (not Serverless/Knative)
@@ -23,7 +23,7 @@ spec:
       modelFormat:
         name: pytorch
       runtime: vllm-omni-runtime
-      storageUri: hf://GEAR-Dreams/DreamZero-DROID
+      storageUri: pvc://dreamzero-model-cache
       volumeMounts:
       - name: dshm
         mountPath: /dev/shm

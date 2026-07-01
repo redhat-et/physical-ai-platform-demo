@@ -23,7 +23,7 @@ spec:
       set -e
 
       # Install system dependencies required by cosmos_guardrail (OpenCV)
-      microdnf install -y libxcb libGL libgomp
+      microdnf install -y --disablerepo=cuda-rhel9-x86_64 libxcb libGL libgomp
 
       # Install cosmos_guardrail without dependencies to preserve torch version
       pip install --target=/tmp/packages --no-deps cosmos_guardrail

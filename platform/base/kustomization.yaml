@@ -6,6 +6,8 @@ resources:
   - dsc-patch.yaml
   - dashboard/
   - maas/
+  - maas-proxy.yaml
+  - maas-proxy-allowlist.yaml
   - mlflow/
   - models/
   - model-catalog/

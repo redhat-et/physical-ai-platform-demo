@@ -1,0 +1,22 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: dreamzero
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: dreamzero-predictor.physical-ai-models.svc.cluster.local
+  targetModel: dreamzero
+  credentialRef:
+    name: dreamzero-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dreamzero-credentials
+  namespace: physical-ai-models
+  labels:
+    inference.networking.k8s.io/bbr-managed: "true"
+type: Opaque
+stringData:
+  api-key: not-used
