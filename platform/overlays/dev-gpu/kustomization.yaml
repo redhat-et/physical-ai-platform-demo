@@ -3,5 +3,5 @@ kind: Kustomization
 
 resources:
   - ../../base
-  # - ../../base/models/dreamzero/
+  - ../../base/models/dreamzero/
   # - ../../base/models/cosmos3-nano/
