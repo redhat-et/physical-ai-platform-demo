@@ -5,9 +5,8 @@ metadata:
   namespace: physical-ai
 spec:
   backendStoreUriFrom:
-    secretKeyRef:
-      name: mlflow-db-connection
-      key: DB_CONNECTION_URL
+    name: mlflow-db-connection
+    key: DB_CONNECTION_URL
   serveArtifacts: true
   artifactsDestination: "file:///mlflow/artifacts"
   storage:
