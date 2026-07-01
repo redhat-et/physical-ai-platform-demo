@@ -15,7 +15,13 @@ Models are served through vLLM-Omni or partner runtimes.
 ## Quickstart
 
 See [platform/prerequisites.md](platform/prerequisites.md) for operator and
-cluster requirements. Run `./platform/preflight.sh` to validate.
+cluster requirements. Run `./platform/preflight.sh` to validate. Use
+`--generate-secrets` to create required database secrets with random passwords:
+
+```bash
+./platform/preflight.sh                # check prerequisites
+./platform/preflight.sh --generate-secrets  # create database secrets if missing
+```
 
 ### GitOps (recommended)
 

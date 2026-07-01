@@ -7,7 +7,7 @@ they must be set up by a cluster admin.
 ## Required Operators
 
 | Operator | Min Version | OperatorHub Package | Catalog | Purpose |
-|----------|-------------|---------------------|---------|---------|
+| ---------- | ------------- | --------------------- | --------- | --------- |
 | OpenShift Container Platform | 4.19.9 | — | — | Gateway API CRDs (native in 4.19+) |
 | Red Hat OpenShift AI | 3.4 | `rhods-operator` | `redhat-operators` | KServe, MaaS controller, Dashboard |
 | Red Hat Connectivity Link | 1.3 | `rhcl-operator` | `redhat-operators` | Kuadrant, Authorino, Limitador |
@@ -127,6 +127,29 @@ data:
     enableUserWorkload: true
 EOF
 ```
+
+## Database Secrets
+
+The platform requires PostgreSQL database secrets that are **not** managed by
+ArgoCD. These must be provisioned before deployment.
+
+| Secret | Namespace | Purpose |
+| -------- | ----------- | --------- |
+| `maas-db-admin-credentials` | `physical-ai` | PostgreSQL admin password for MaaS DB |
+| `maas-db-credentials` | `physical-ai` | MaaS DB user, password, database name |
+| `maas-db-config` | `redhat-ods-applications` | MaaS DB connection URL |
+| `mlflow-db-admin-credentials` | `physical-ai` | PostgreSQL admin password for MLflow DB |
+| `mlflow-db-credentials` | `physical-ai` | MLflow DB user, password, database name |
+| `mlflow-db-connection` | `redhat-ods-applications` | MLflow DB connection URL |
+
+Use `--generate-secrets` to create them with random passwords:
+
+```bash
+./platform/preflight.sh --generate-secrets
+```
+
+The flag is idempotent — it skips secrets that already exist and reads back
+existing passwords when generating dependent secrets (e.g. connection URLs).
 
 ## Validation
 
