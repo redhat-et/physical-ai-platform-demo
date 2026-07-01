@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - dsc-patch.yaml
+  - dashboard/
   - maas/
+  - mlflow/
   - models/
   - model-catalog/

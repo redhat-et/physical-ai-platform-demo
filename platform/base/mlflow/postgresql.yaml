@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: maas-db
+  name: mlflow-db
   namespace: physical-ai
 spec:
   selector:
-    app: maas-db
+    app: mlflow-db
   ports:
     - port: 5432
       targetPort: 5432
@@ -13,20 +13,20 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: maas-db
+  name: mlflow-db
   namespace: physical-ai
   labels:
-    app: maas-db
+    app: mlflow-db
 spec:
-  serviceName: maas-db
+  serviceName: mlflow-db
   replicas: 1
   selector:
     matchLabels:
-      app: maas-db
+      app: mlflow-db
   template:
     metadata:
       labels:
-        app: maas-db
+        app: mlflow-db
     spec:
       containers:
         - name: postgresql
@@ -35,9 +35,9 @@ spec:
             - containerPort: 5432
           envFrom:
             - secretRef:
-                name: maas-db-admin-credentials
+                name: mlflow-db-admin-credentials
             - secretRef:
-                name: maas-db-credentials
+                name: mlflow-db-credentials
           resources:
             requests:
               cpu: 50m
@@ -50,7 +50,7 @@ spec:
               mountPath: /var/lib/pgsql/data
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "maas"]
+              command: ["pg_isready", "-U", "mlflow"]
             initialDelaySeconds: 10
             periodSeconds: 5
   volumeClaimTemplates:
@@ -60,4 +60,4 @@ spec:
         accessModes: [ReadWriteOnce]
         resources:
           requests:
-            storage: 1Gi
+            storage: 5Gi

@@ -23,3 +23,5 @@ spec:
       managementState: Managed
     mlflowoperator:
       managementState: Managed
+    llamastackoperator:
+      managementState: Managed
