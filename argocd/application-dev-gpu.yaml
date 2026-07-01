@@ -53,3 +53,13 @@ spec:
       name: maas-db
       jsonPointers:
         - /spec/replicas
+    # federation-config is managed by the RHOAI operator; we override it
+    # with opendatahub.io/managed=false but the operator may re-add its
+    # own annotations/labels during reconciliation
+    - kind: ConfigMap
+      name: federation-config
+      namespace: redhat-ods-applications
+      jsonPointers:
+        - /metadata/annotations
+        - /metadata/labels
+        - /metadata/ownerReferences

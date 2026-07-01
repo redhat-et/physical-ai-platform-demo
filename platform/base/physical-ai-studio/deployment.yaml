@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: physical-ai-studio
+  namespace: redhat-ods-applications
+  labels:
+    app: physical-ai-studio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: physical-ai-studio
+  template:
+    metadata:
+      labels:
+        app: physical-ai-studio
+    spec:
+      containers:
+        - name: nginx
+          image: quay.io/redhat-et/physical-ai-platform-robotics-playground:latest
+          ports:
+            - name: http-mf
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /remoteEntry.js
+              port: http-mf
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: physical-ai-studio
+  namespace: redhat-ods-applications
+  labels:
+    app: physical-ai-studio
+spec:
+  selector:
+    app: physical-ai-studio
+  ports:
+    - name: http-mf
+      port: 8080
+      targetPort: http-mf
+      protocol: TCP
