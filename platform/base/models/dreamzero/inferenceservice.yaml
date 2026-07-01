@@ -3,6 +3,9 @@ kind: InferenceService
 metadata:
   name: dreamzero
   namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
   annotations:
     # Use RawDeployment mode (not Serverless/Knative)
     serving.kserve.io/deploymentMode: RawDeployment
