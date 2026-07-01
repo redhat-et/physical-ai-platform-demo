@@ -7,6 +7,7 @@ const extensions = [
       id: PHYSICAL_AI_STUDIO,
       title: 'Physical AI studio',
       group: '4_physical_ai_studio',
+      iconRef: () => import('./PhysicalAiStudioNavIcon'),
     },
   },
   {
@@ -17,6 +18,7 @@ const extensions = [
       href: '/physicalAiStudio/roboticsPlayground',
       section: PHYSICAL_AI_STUDIO,
       path: '/physicalAiStudio/roboticsPlayground/*',
+      label: 'Experimental',
     },
   },
   {
