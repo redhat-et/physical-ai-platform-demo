@@ -9,3 +9,4 @@ resources:
   - mlflow/
   - models/
   - model-catalog/
+  - physical-ai-studio/
