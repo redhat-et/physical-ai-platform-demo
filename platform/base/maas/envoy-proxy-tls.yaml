@@ -16,10 +16,15 @@ spec:
           name: envoy.transport_sockets.tls
           typed_config:
             '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            sni: maas-proxy.physical-ai-models.svc.cluster.local
             common_tls_context:
               validation_context:
                 trusted_ca:
                   filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+                match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: maas-proxy.physical-ai-models.svc.cluster.local
   targetRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway

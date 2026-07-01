@@ -43,7 +43,7 @@ oc get deployment/authorino -n kuadrant-system -o \
 # Expected: /etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
 
 oc get gateway maas-default-gateway -n openshift-ingress -o \
-  jsonpath='{.metadata.annotations.security\.opendatahub\.io/authorino-tls-bootstrap}'
+  jsonpath='{.metadata.annotations["security.opendatahub.io/authorino-tls-bootstrap"]}'
 # Expected: true
 ```
 
@@ -51,12 +51,12 @@ oc get gateway maas-default-gateway -n openshift-ingress -o \
 
 Generate an API key to access models through MaaS. Keys are scoped to a subscription which determines which models the key can access and the rate limits.
 
-**Via CLI** (from inside the cluster or with port-forward to `maas-api`):
+**Via CLI** (from inside the cluster, e.g. `oc debug`):
 
 ```bash
 curl -sk https://maas-api.redhat-ods-applications.svc:8443/v1/api-keys \
   -X POST \
-  -H "X-MaaS-Username: $(oc whoami)" \
+  -H "X-MaaS-Username: <your-username>" \
   -H 'X-MaaS-Group: ["system:authenticated"]' \
   -H "Content-Type: application/json" \
   -d '{"name":"my-key","subscription":"physical-ai-dev"}'
