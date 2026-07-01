@@ -3,13 +3,13 @@ kind: ServingRuntime
 metadata:
   name: mocklm-runtime
   namespace: physical-ai-models
-  annotations:
-    serving.kserve.io/servingruntime: vllm
   labels:
     opendatahub.io/dashboard: "true"
 spec:
   annotations:
     opendatahub.io/kserve-runtime: vllm
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
     prometheus.kserve.io/path: /metrics
     prometheus.kserve.io/port: "8080"
   containers:
