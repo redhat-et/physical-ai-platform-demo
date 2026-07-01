@@ -16,7 +16,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm-echo-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: mocklm-echo
   credentialRef:
     name: mocklm-credentials
@@ -28,7 +28,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm-eliza-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: mocklm-eliza
   credentialRef:
     name: mocklm-credentials
@@ -40,7 +40,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm-detect-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: mocklm-detect
   credentialRef:
     name: mocklm-credentials
@@ -52,7 +52,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: mocklm-describe-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: mocklm-describe
   credentialRef:
     name: mocklm-credentials

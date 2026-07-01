@@ -5,7 +5,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: cosmos3-nano-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: cosmos3-nano
   credentialRef:
     name: cosmos3-credentials
