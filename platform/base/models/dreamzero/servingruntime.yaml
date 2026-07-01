@@ -13,7 +13,9 @@ spec:
   containers:
   - name: kserve-container
     image: quay.io/vllm/automation-vllm-omni:cuda-27760112356
-    # KEY CHANGE: Use bash wrapper instead of direct exec
+    ports:
+    - containerPort: 8080
+      protocol: TCP
     command:
     - /bin/bash
     - -c

@@ -10,3 +10,5 @@ resources:
   - model-ref.yaml
   - subscription.yaml
   - auth-policy.yaml
+  - metrics-service.yaml
+  - prometheus-rule.yaml

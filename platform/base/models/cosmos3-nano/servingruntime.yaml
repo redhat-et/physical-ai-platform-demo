@@ -7,11 +7,15 @@ metadata:
     opendatahub.io/dashboard: "true"
 spec:
   annotations:
+    opendatahub.io/kserve-runtime: vllm
     prometheus.kserve.io/path: /metrics
     prometheus.kserve.io/port: "8080"
   containers:
   - name: kserve-container
     image: quay.io/vllm/automation-vllm-omni:cuda-27760112356
+    ports:
+    - containerPort: 8080
+      protocol: TCP
     securityContext:
       runAsUser: 0
       runAsGroup: 0
