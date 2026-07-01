@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cosmos3-nano-vllm-omni-compat
+  namespace: physical-ai-models
+  labels:
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  groups:
+  - name: cosmos3-nano-vllm-omni-compat
+    interval: 30s
+    rules:
+    # Map http_requests_total to vllm:request_success_total with finished_reason labels
+    - record: vllm:request_success_total
+      expr: >-
+        label_replace(
+          label_replace(
+            http_requests_total{namespace="physical-ai-models", job="cosmos3-nano-metrics", status="2xx"},
+            "model_name", "cosmos3-nano", "model_name", ".*"),
+          "finished_reason", "stop", "", "")
+    - record: vllm:request_success_total
+      expr: >-
+        label_replace(
+          label_replace(
+            http_requests_total{namespace="physical-ai-models", job="cosmos3-nano-metrics", status="5xx"},
+            "model_name", "cosmos3-nano", "model_name", ".*"),
+          "finished_reason", "error", "", "")
+    # Map vllm-omni latency histogram to standard vllm names
+    - record: vllm:e2e_request_latency_seconds_count
+      expr: >-
+        label_replace(
+          vllm:omni_e2e_request_latency_s_count{namespace="physical-ai-models", job="cosmos3-nano-metrics"},
+          "model_name", "cosmos3-nano", "model_name", ".*")
+    - record: vllm:e2e_request_latency_seconds_sum
+      expr: >-
+        label_replace(
+          vllm:omni_e2e_request_latency_s_sum{namespace="physical-ai-models", job="cosmos3-nano-metrics"},
+          "model_name", "cosmos3-nano", "model_name", ".*")
+    - record: vllm:e2e_request_latency_seconds_bucket
+      expr: >-
+        label_replace(
+          vllm:omni_e2e_request_latency_s_bucket{namespace="physical-ai-models", job="cosmos3-nano-metrics"},
+          "model_name", "cosmos3-nano", "model_name", ".*")
+    # Map omni gauges
+    - record: vllm:num_requests_running
+      expr: >-
+        label_replace(
+          vllm:omni_num_requests_running{namespace="physical-ai-models", job="cosmos3-nano-metrics"},
+          "model_name", "cosmos3-nano", "model_name", ".*")
+    - record: vllm:num_requests_waiting
+      expr: >-
+        label_replace(
+          vllm:omni_num_requests_waiting{namespace="physical-ai-models", job="cosmos3-nano-metrics"},
+          "model_name", "cosmos3-nano", "model_name", ".*")
