@@ -7,3 +7,4 @@ resources:
   - postgresql.yaml
   - maas-proxy.yaml
   - maas-proxy-allowlist.yaml
+  - envoy-proxy-tls.yaml

@@ -5,7 +5,7 @@ metadata:
   namespace: physical-ai-models
 spec:
   provider: openai
-  endpoint: dreamzero-predictor.physical-ai-models.svc.cluster.local
+  endpoint: maas-proxy.physical-ai-models.svc.cluster.local
   targetModel: dreamzero
   credentialRef:
     name: dreamzero-credentials
