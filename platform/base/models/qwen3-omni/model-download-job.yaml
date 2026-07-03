@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-qwen3-omni-model
+  namespace: physical-ai-models
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: downloader
+        image: python:3.11-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          pip install -q huggingface_hub
+          python3 << 'PYEOF'
+          from huggingface_hub import snapshot_download
+          import os
+          snapshot_download(
+              repo_id='Qwen/Qwen3-Omni-30B-A3B-Instruct',
+              local_dir='/mnt/models',
+              token=os.getenv('HF_TOKEN'),
+              resume_download=True
+          )
+          print("Download complete!")
+          import os
+          print(f"Files: {len(os.listdir('/mnt/models'))}")
+          PYEOF
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: huggingface-token
+              key: HF_TOKEN
+        volumeMounts:
+        - name: model-storage
+          mountPath: /mnt/models
+        resources:
+          requests:
+            cpu: "2"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 16Gi
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: qwen3-omni-model-cache

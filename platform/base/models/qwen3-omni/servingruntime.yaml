@@ -1,0 +1,64 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-omni-qwen3-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: quay.io/vllm/automation-vllm-omni:cuda-27760112356
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      unset HF_HUB_OFFLINE
+
+      vllm serve /mnt/models \
+        --omni \
+        --port=8080 \
+        --served-model-name={{.Name}} \
+        --trust-remote-code \
+        --deploy-config /etc/vllm-omni/deploy-config.yaml \
+        --stage-init-timeout 900
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /tmp/torch_cache
+    volumeMounts:
+    - name: deploy-config
+      mountPath: /etc/vllm-omni/
+      readOnly: true
+    resources:
+      requests:
+        cpu: "4"
+        memory: 64Gi
+        nvidia.com/gpu: "4"
+      limits:
+        cpu: "8"
+        memory: 128Gi
+        nvidia.com/gpu: "4"
+  volumes:
+  - name: dshm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 16Gi
+  - name: deploy-config
+    configMap:
+      name: qwen3-omni-deploy-config
+  supportedModelFormats:
+  - name: pytorch
+    version: "2"
+    autoSelect: true
+  - name: vllm
+    autoSelect: true

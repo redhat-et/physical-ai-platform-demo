@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: qwen3-omni-metrics
+  namespace: physical-ai-models
+  labels:
+    monitoring.opendatahub.io/scrape: "true"
+    name: qwen3-omni-metrics
+spec:
+  ports:
+  - name: vllm-omni-qwen3-runtime-metrics
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    serving.kserve.io/inferenceservice: qwen3-omni
+  type: ClusterIP
