@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: physical-ai-studio-nginx
+  namespace: redhat-ods-applications
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        access_log /dev/stdout;
+        types_hash_max_size 4096;
+
+        server {
+            listen 8080;
+            root /opt/app-root/src;
+            index index.html;
+
+            location /api/ {
+                proxy_pass http://backend.redhat-ods-applications.svc.cluster.local:8000;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+            }
+
+            location /ws {
+                proxy_pass http://backend.redhat-ods-applications.svc.cluster.local:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+            }
+
+            location / {
+                try_files $uri $uri/ /index.html;
+            }
+        }
+    }
