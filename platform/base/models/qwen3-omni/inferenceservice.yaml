@@ -1,0 +1,38 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen3-omni
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    minReplicas: 0
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-L4
+    volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Gi
+    model:
+      modelFormat:
+        name: pytorch
+      runtime: vllm-omni-qwen3-runtime
+      storageUri: pvc://qwen3-omni-model-cache
+      volumeMounts:
+      - name: dshm
+        mountPath: /dev/shm
+      resources:
+        requests:
+          cpu: "4"
+          memory: 64Gi
+          nvidia.com/gpu: "4"
+        limits:
+          cpu: "8"
+          memory: 128Gi
+          nvidia.com/gpu: "4"

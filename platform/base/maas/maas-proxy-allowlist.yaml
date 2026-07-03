@@ -13,5 +13,6 @@ data:
       mocklm-eliza     mocklm-eliza-predictor.physical-ai-models.svc.cluster.local;
       cosmos3-nano     cosmos3-nano-predictor.physical-ai-models.svc.cluster.local;
       dreamzero        dreamzero-predictor.physical-ai-models.svc.cluster.local;
+      qwen3-omni       qwen3-omni-predictor.physical-ai-models.svc.cluster.local;
       default          "";
     }

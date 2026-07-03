@@ -28,7 +28,6 @@ spec:
               repo_id='nvidia/Cosmos3-Nano',
               local_dir='/mnt/models',
               token=token,
-              resume_download=True
           )
           print("Model download completed successfully!")
           # Verify model files exist
