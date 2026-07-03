@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: physical-ai-studio-backend
+  namespace: redhat-ods-applications
+  labels:
+    app: physical-ai-studio-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: physical-ai-studio-backend
+  template:
+    metadata:
+      labels:
+        app: physical-ai-studio-backend
+    spec:
+      containers:
+        - name: api
+          image: quay.io/redhat-et/robotics-playground:latest
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

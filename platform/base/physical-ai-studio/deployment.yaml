@@ -17,7 +17,12 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: quay.io/redhat-et/physical-ai-platform-robotics-playground:latest
+          image: quay.io/redhat-et/robotics-playground-ui:latest
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
           ports:
             - name: http-mf
               containerPort: 8080
@@ -34,3 +39,7 @@ spec:
               memory: 32Mi
             limits:
               memory: 64Mi
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: physical-ai-studio-nginx
