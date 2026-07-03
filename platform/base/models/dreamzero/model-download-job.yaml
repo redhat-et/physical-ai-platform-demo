@@ -28,7 +28,6 @@ spec:
               repo_id='GEAR-Dreams/DreamZero-DROID',
               local_dir='/mnt/models',
               token=token,
-              resume_download=True
           )
           print("Model download completed successfully!")
           # Verify model files exist

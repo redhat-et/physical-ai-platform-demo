@@ -24,7 +24,6 @@ spec:
               repo_id='Qwen/Qwen3-Omni-30B-A3B-Instruct',
               local_dir='/mnt/models',
               token=os.getenv('HF_TOKEN'),
-              resume_download=True
           )
           print("Download complete!")
           import os

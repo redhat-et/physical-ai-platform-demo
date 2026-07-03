@@ -49,10 +49,6 @@ spec:
         memory: 128Gi
         nvidia.com/gpu: "4"
   volumes:
-  - name: dshm
-    emptyDir:
-      medium: Memory
-      sizeLimit: 16Gi
   - name: deploy-config
     configMap:
       name: qwen3-omni-deploy-config
