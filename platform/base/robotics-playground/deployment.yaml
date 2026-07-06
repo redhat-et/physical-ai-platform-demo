@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: physical-ai-studio
+  name: robotics-playground-ui
   namespace: redhat-ods-applications
   labels:
-    app: physical-ai-studio
+    app: robotics-playground-ui
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: physical-ai-studio
+      app: robotics-playground-ui
   template:
     metadata:
       labels:
-        app: physical-ai-studio
+        app: robotics-playground-ui
     spec:
       containers:
         - name: nginx
@@ -42,4 +42,4 @@ spec:
       volumes:
         - name: nginx-config
           configMap:
-            name: physical-ai-studio-nginx
+            name: robotics-playground-nginx

@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: physical-ai-studio
+  name: robotics-playground-ui
   namespace: redhat-ods-applications
   labels:
-    app: physical-ai-studio
+    app: robotics-playground-ui
 spec:
   selector:
-    app: physical-ai-studio
+    app: robotics-playground-ui
   ports:
     - name: http-mf
       port: 8080

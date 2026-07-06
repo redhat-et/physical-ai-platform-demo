@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: physical-ai-studio-backend
+  name: robotics-playground
   namespace: redhat-ods-applications
   labels:
-    app: physical-ai-studio-backend
+    app: robotics-playground
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: physical-ai-studio-backend
+      app: robotics-playground
   template:
     metadata:
       labels:
-        app: physical-ai-studio-backend
+        app: robotics-playground
     spec:
       containers:
         - name: api
