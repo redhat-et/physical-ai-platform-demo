@@ -12,6 +12,7 @@ resources:
   - auth-policy.yaml
   - metrics-service.yaml
   - prometheus-rule.yaml
+  - httpscaledobject.yaml
 
 configMapGenerator:
 - name: qwen3-omni-deploy-config

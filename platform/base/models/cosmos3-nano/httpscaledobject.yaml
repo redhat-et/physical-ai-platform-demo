@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: cosmos3-nano-http-scaler
+  namespace: physical-ai-models
+spec:
+  hosts:
+  - cosmos3-nano-predictor.physical-ai-models.svc.cluster.local
+  targetPendingRequests: 1
+  scaleTargetRef:
+    name: cosmos3-nano-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: cosmos3-nano-predictor
+    port: 80
+  replicas:
+    min: 0
+    max: 3
+  scaledownPeriod: 3600

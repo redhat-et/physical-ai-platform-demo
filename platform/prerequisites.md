@@ -12,6 +12,7 @@ they must be set up by a cluster admin.
 | Red Hat OpenShift AI | 3.4 | `rhods-operator` | `redhat-operators` | KServe, MaaS controller, Dashboard |
 | Red Hat Connectivity Link | 1.3 | `rhcl-operator` | `redhat-operators` | Kuadrant, Authorino, Limitador |
 | cert-manager | 1.x | `openshift-cert-manager-operator` | `redhat-operators` | TLS certificates |
+| Custom Metrics Autoscaler | 2.19 | `custom-metrics-autoscaler` | `redhat-operators` | KEDA for GPU model scale-to-zero (optional) |
 
 > **Note:** Do not install the community `kuadrant-operator` from
 > `community-operators`. It is deprecated and its CRDs are incompatible
@@ -158,3 +159,98 @@ Run the preflight script to check all prerequisites:
 ```bash
 ./platform/preflight.sh
 ```
+
+## Optional: Custom Metrics Autoscaler (KEDA)
+
+Required for GPU model scale-to-zero. Without it, GPU models stay running
+continuously. With it, models like Qwen3-Omni and Cosmos3-Nano scale to zero
+when idle and wake up on demand through MaaS requests.
+
+### Install the operator
+
+Install **Custom Metrics Autoscaler** from the Software Catalog (search
+"Custom Metrics Autoscaler"). It installs into `openshift-keda`.
+
+### Create the KedaController with HTTP Add-on
+
+```bash
+oc patch kedacontroller keda -n openshift-keda --type=merge \
+  -p '{"spec":{"httpAddon":{"enabled":true}}}'
+```
+
+The HTTP Add-on deploys an interceptor proxy that buffers requests while
+scaled-to-zero pods start up.
+
+### Set up Prometheus RBAC
+
+KEDA needs to read Prometheus metrics for scaling decisions:
+
+```bash
+# Service account and token
+cat <<'EOF' | oc apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keda-prometheus-sa
+  namespace: openshift-keda
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keda-prometheus-token
+  namespace: openshift-keda
+  annotations:
+    kubernetes.io/service-account.name: keda-prometheus-sa
+type: kubernetes.io/service-account-token
+EOF
+
+# Grant cluster monitoring read access
+oc adm policy add-cluster-role-to-user cluster-monitoring-view \
+  -z keda-prometheus-sa -n openshift-keda
+```
+
+### Create TriggerAuthentication
+
+Copy the token to the model namespace and create the TriggerAuthentication:
+
+```bash
+TOKEN=$(oc get secret keda-prometheus-token -n openshift-keda -o jsonpath='{.data.token}')
+CA=$(oc get secret keda-prometheus-token -n openshift-keda -o jsonpath='{.data.ca\.crt}')
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keda-prometheus-token
+  namespace: physical-ai-models
+type: Opaque
+data:
+  token: $TOKEN
+  ca.crt: $CA
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-trigger-auth-prometheus
+  namespace: physical-ai-models
+spec:
+  secretTargetRef:
+  - parameter: bearerToken
+    name: keda-prometheus-token
+    key: token
+  - parameter: ca
+    name: keda-prometheus-token
+    key: ca.crt
+EOF
+```
+
+### How it works
+
+GPU models (Qwen3-Omni, Cosmos3-Nano, DreamZero) include an
+`HTTPScaledObject` in their kustomization that tells KEDA to manage
+scaling. The MaaS proxy routes these models through the KEDA HTTP
+interceptor, which buffers requests during cold starts. Models scale to
+zero after 1 hour of no traffic and wake up when a MaaS request arrives.
+
+The first request after scale-to-zero may take several minutes while the
+model loads into GPU memory. Use a long timeout (e.g. `curl -m 900`).
