@@ -10,3 +10,4 @@ resources:
   - models/
   - model-catalog/
   - robotics-playground/
+  - robotics-playground-backend/

@@ -6,3 +6,7 @@ resources:
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
   - ../../base/models/qwen3-omni/
+  - ../../base/isaac-sim/
+  
+patches:
+  - path: playground-ros2-config.yaml

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: robotics-playground
-  namespace: redhat-ods-applications
+  namespace: physical-ai
   labels:
     app: robotics-playground
 spec:
@@ -23,6 +23,13 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
+          env:
+            - name: PLAYGROUND_CONFIG
+              value: /etc/robotics-playground/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/robotics-playground
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /api/health
@@ -35,3 +42,7 @@ spec:
               memory: 128Mi
             limits:
               memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: robotics-playground-config
