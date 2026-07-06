@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: robotics-playground-config
+  namespace: physical-ai
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      log_level: "info"
+
+    rerun:
+      grpc_port: 9876
+      web_port: 9090
+
+    bridge:
+      type: "ros2"
+
+    ros2:
+      domain_id: 0
+      cameras:
+        wrist: "/camera/wrist/rgb"
+        exterior_1: "/camera/exterior_1/rgb"
+        exterior_2: "/camera/exterior_2/rgb"
+      joint_state_topic: "/joint_states"
+      joint_command_topic: "/joint_commands"
+      set_sim_state_service: "/isaacsim/SetSimulationState"
+      step_simulation_service: "/isaacsim/StepSimulation"
