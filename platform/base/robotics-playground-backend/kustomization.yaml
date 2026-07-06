@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
-  - nginx-config.yaml
+  - config.yaml

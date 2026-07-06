@@ -1,0 +1,248 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: isaac-lab-launch-script
+  namespace: physical-ai
+  labels:
+    app: isaac-lab
+data:
+  launch_ros2_scene.py: |
+    """Headless Isaac Sim launcher with Franka arm, cameras, and ROS 2 bridge.
+
+    Creates a Franka Panda scene with 3 cameras (wrist + 2 exterior) matching
+    the DreamZero/DROID camera setup, and publishes joint states and camera
+    images via rclpy.
+    """
+
+    import argparse
+    import sys
+    import threading
+
+    from isaaclab.app import AppLauncher
+
+    parser = argparse.ArgumentParser(description="Franka arm with ROS 2 bridge")
+    AppLauncher.add_app_launcher_args(parser)
+    parser.set_defaults(headless=True, enable_cameras=True)
+    args_cli = parser.parse_args()
+
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+
+    # -- rest of imports after app launch --
+    import numpy as np
+    import omni.kit.app
+    import torch
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import Articulation
+    from isaaclab.sensors import Camera, CameraCfg
+    from isaaclab_assets import FRANKA_PANDA_CFG
+
+
+    CAM_WIDTH = 320
+    CAM_HEIGHT = 180
+    CAM_UPDATE_PERIOD = 0.0
+    CAM_PUBLISH_INTERVAL = 12
+
+    CAMERA_CONFIGS = {
+        "wrist": CameraCfg(
+            prim_path="/World/WristCamMount/wrist_cam",
+            update_period=CAM_UPDATE_PERIOD,
+            height=CAM_HEIGHT,
+            width=CAM_WIDTH,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.01, 20.0),
+            ),
+        ),
+        "exterior_1": CameraCfg(
+            prim_path="/World/ExtCam1/CameraSensor",
+            update_period=CAM_UPDATE_PERIOD,
+            height=CAM_HEIGHT,
+            width=CAM_WIDTH,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 20.0),
+            ),
+        ),
+        "exterior_2": CameraCfg(
+            prim_path="/World/ExtCam2/CameraSensor",
+            update_period=CAM_UPDATE_PERIOD,
+            height=CAM_HEIGHT,
+            width=CAM_WIDTH,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 20.0),
+            ),
+        ),
+    }
+
+    CAMERA_TOPICS = {
+        "wrist": "/camera/wrist/rgb",
+        "exterior_1": "/camera/exterior_1/rgb",
+        "exterior_2": "/camera/exterior_2/rgb",
+    }
+
+
+    def enable_extension(name):
+        mgr = omni.kit.app.get_app().get_extension_manager()
+        mgr.set_extension_enabled_immediate(name, True)
+
+
+    def numpy_to_image_msg(Image, Time, rgb, sec, nsec):
+        msg = Image()
+        msg.header.stamp = Time(sec=sec, nanosec=nsec)
+        msg.height = rgb.shape[0]
+        msg.width = rgb.shape[1]
+        msg.encoding = "rgb8"
+        msg.is_bigendian = 0
+        msg.step = rgb.shape[1] * 3
+        msg.data = rgb.tobytes()
+        return msg
+
+
+    def design_scene():
+        cfg = sim_utils.GroundPlaneCfg()
+        cfg.func("/World/defaultGroundPlane", cfg)
+
+        cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        cfg.func("/World/Light", cfg)
+
+        sim_utils.create_prim("/World/WristCamMount", "Xform")
+        sim_utils.create_prim("/World/ExtCam1", "Xform")
+        sim_utils.create_prim("/World/ExtCam2", "Xform")
+
+        franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+        franka_cfg.init_state.pos = (0.0, 0.0, 1.05)
+        franka = Articulation(cfg=franka_cfg)
+
+        cameras = {}
+        for name, cam_cfg in CAMERA_CONFIGS.items():
+            cameras[name] = Camera(cfg=cam_cfg)
+
+        return {"franka": franka, "cameras": cameras}
+
+
+    def main():
+        enable_extension("isaacsim.ros2.bridge")
+        enable_extension("isaacsim.ros2.sim_control")
+
+        import rclpy
+        from builtin_interfaces.msg import Time
+        from rosgraph_msgs.msg import Clock
+        from sensor_msgs.msg import Image, JointState
+
+        sim_cfg = sim_utils.SimulationCfg(device="cpu")
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view([2.5, 0.0, 2.0], [0.0, 0.0, 1.0])
+
+        scene_entities = design_scene()
+
+        sim.reset()
+
+        cameras = scene_entities["cameras"]
+
+        device = sim.device
+        cameras["wrist"].set_world_poses_from_view(
+            eyes=torch.tensor([[0.3, 0.0, 1.3]], device=device),
+            targets=torch.tensor([[0.5, 0.0, 1.05]], device=device),
+        )
+        cameras["exterior_1"].set_world_poses_from_view(
+            eyes=torch.tensor([[1.5, -1.0, 2.0]], device=device),
+            targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+        )
+        cameras["exterior_2"].set_world_poses_from_view(
+            eyes=torch.tensor([[1.5, 1.0, 2.0]], device=device),
+            targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+        )
+
+        node = rclpy.create_node("isaac_sim_bridge")
+        joint_pub = node.create_publisher(JointState, "/joint_states", 10)
+        clock_pub = node.create_publisher(Clock, "/clock", 10)
+
+        cam_pubs = {}
+        for name, topic in CAMERA_TOPICS.items():
+            cam_pubs[name] = node.create_publisher(Image, topic, 10)
+
+        spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+        spin_thread.start()
+
+        franka = scene_entities["franka"]
+        joint_names = [
+            "panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4",
+            "panda_joint5", "panda_joint6", "panda_joint7",
+            "panda_finger_joint1", "panda_finger_joint2",
+        ]
+
+        last_cam_frame = {name: -1 for name in cameras}
+
+        sys.stdout.write("[INFO] Scene ready. 3 cameras + ROS 2 rclpy bridge active.\n")
+        sys.stdout.flush()
+
+        sim_dt = sim.get_physics_dt()
+        count = 0
+        while simulation_app.is_running():
+            sim.step()
+            franka.update(sim_dt)
+
+            for cam in cameras.values():
+                cam.update(sim_dt)
+
+            count += 1
+
+            if count % 2 == 0:
+                pos = franka.data.joint_pos[0].cpu().numpy()
+                vel = franka.data.joint_vel[0].cpu().numpy()
+                try:
+                    eff = franka.data.applied_torque[0].cpu().numpy()
+                except (AttributeError, RuntimeError):
+                    eff = np.zeros_like(pos)
+
+                sim_time = count * sim_dt
+                sec = int(sim_time)
+                nsec = int((sim_time - sec) * 1e9)
+
+                js = JointState()
+                js.header.stamp = Time(sec=sec, nanosec=nsec)
+                js.name = joint_names
+                js.position = pos.tolist()
+                js.velocity = vel.tolist()
+                js.effort = eff.tolist()
+                joint_pub.publish(js)
+
+                clk = Clock()
+                clk.clock = Time(sec=sec, nanosec=nsec)
+                clock_pub.publish(clk)
+
+                if count % CAM_PUBLISH_INTERVAL == 0:
+                    for name, cam in cameras.items():
+                        frame_idx = cam.frame[0].item()
+                        if frame_idx > last_cam_frame[name]:
+                            last_cam_frame[name] = frame_idx
+                            rgb = cam.data.output["rgb"][0].cpu().numpy()
+                            if rgb.shape[2] == 4:
+                                rgb = rgb[:, :, :3].copy()
+                            msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
+                            cam_pubs[name].publish(msg)
+
+            if count % 5000 == 0:
+                cam_frames = {n: last_cam_frame[n] for n in cameras}
+                sys.stdout.write(f"[INFO] Step {count}, cam frames: {cam_frames}\n")
+                sys.stdout.flush()
+
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+    if __name__ == "__main__":
+        main()
+        simulation_app.close()

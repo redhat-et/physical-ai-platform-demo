@@ -3,5 +3,9 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../base/isaac-sim/
   # - ../../base/models/dreamzero/
   # - ../../base/models/cosmos3-nano/
+
+patches:
+  - path: playground-ros2-config.yaml

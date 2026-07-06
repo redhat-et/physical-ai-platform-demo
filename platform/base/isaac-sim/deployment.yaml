@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: isaac-lab
+  namespace: physical-ai
+  labels:
+    app: isaac-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: isaac-lab
+  template:
+    metadata:
+      labels:
+        app: isaac-lab
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-L40S
+      containers:
+        - name: isaac-lab
+          image: nvcr.io/nvidia/isaac-lab:2.3.2
+          command: ["bash", "-c"]
+          args:
+            - ./isaaclab.sh -p /app/launch_ros2_scene.py --headless --enable_cameras
+          env:
+            - name: LD_LIBRARY_PATH
+              value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib
+          volumeMounts:
+            - name: launch-script
+              mountPath: /app
+              readOnly: true
+          resources:
+            requests:
+              cpu: "4"
+              memory: 16Gi
+            limits:
+              nvidia.com/gpu: "1"
+              memory: 32Gi
+      volumes:
+        - name: launch-script
+          configMap:
+            name: isaac-lab-launch-script
