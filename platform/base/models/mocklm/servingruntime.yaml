@@ -15,6 +15,7 @@ spec:
   containers:
   - name: kserve-container
     image: quay.io/fzdarsky/mocklm:latest
+    imagePullPolicy: Always
     ports:
     - containerPort: 8080
       protocol: TCP
