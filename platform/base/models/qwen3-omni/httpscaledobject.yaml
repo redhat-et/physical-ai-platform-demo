@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: qwen3-omni-http-scaler
+  namespace: physical-ai-models
+spec:
+  hosts:
+  - qwen3-omni-predictor.physical-ai-models.svc.cluster.local
+  targetPendingRequests: 1
+  scaleTargetRef:
+    name: qwen3-omni-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: qwen3-omni-predictor
+    port: 80
+  replicas:
+    min: 0
+    max: 3
+  scaledownPeriod: 3600

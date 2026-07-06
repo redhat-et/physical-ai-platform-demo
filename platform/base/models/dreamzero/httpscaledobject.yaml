@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: dreamzero-http-scaler
+  namespace: physical-ai-models
+spec:
+  hosts:
+  - dreamzero-predictor.physical-ai-models.svc.cluster.local
+  targetPendingRequests: 1
+  scaleTargetRef:
+    name: dreamzero-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: dreamzero-predictor
+    port: 80
+  replicas:
+    min: 0
+    max: 3
+  scaledownPeriod: 3600

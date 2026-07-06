@@ -9,6 +9,7 @@ metadata:
   annotations:
     # Use RawDeployment mode (not Serverless/Knative)
     serving.kserve.io/deploymentMode: RawDeployment
+    serving.kserve.io/autoscalerClass: external
     # Disable Istio sidecar injection to prevent multiprocessing interference
     sidecar.istio.io/inject: "false"
 spec:

@@ -9,8 +9,7 @@ data:
       worker_connections 1024;
     }
     http {
-      # Generic upstream resolver for dynamic model names
-      resolver 172.30.0.10 valid=10s;  # OpenShift DNS
+      resolver 172.30.0.10 valid=10s;
 
       include /etc/nginx/conf.d/model-allowlist.conf;
 
@@ -21,16 +20,21 @@ data:
         ssl_certificate /etc/tls/tls.crt;
         ssl_certificate_key /etc/tls/tls.key;
 
-        # Generic location for all models: /physical-ai-models/<model-name>/*
         location ~ ^/physical-ai-models/(?<model>[^/]+)(?<path>/.*)?$ {
-          if ($backend = "") {
+          if ($backend_addr = "") {
             return 404;
           }
-          proxy_pass http://$backend:80$path;
-          proxy_set_header Host $http_host;
+          proxy_pass http://$backend_addr$path;
+          proxy_set_header Host $backend_host;
           proxy_set_header X-Real-IP $remote_addr;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_connect_timeout 120s;
+          proxy_read_timeout 900s;
+          proxy_send_timeout 120s;
+          proxy_next_upstream error timeout http_502;
+          proxy_next_upstream_tries 10;
+          proxy_next_upstream_timeout 120s;
         }
       }
     }
