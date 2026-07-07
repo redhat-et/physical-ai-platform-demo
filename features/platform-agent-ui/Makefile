@@ -1,9 +1,14 @@
 IMAGE ?= quay.io/redhat-et/physical-ai-agent-ui:latest
+CONTAINER_ENGINE ?= docker
+PLATFORM ?= linux/amd64
 
-.PHONY: build push
+.PHONY: build push deploy
 
 build:
-	podman build -t $(IMAGE) -f Containerfile .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -t $(IMAGE) -f Containerfile .
 
 push:
-	podman push $(IMAGE)
+	$(CONTAINER_ENGINE) push $(IMAGE)
+
+deploy: build push
+	oc delete pod -n redhat-ods-applications -l app=platform-agent-ui

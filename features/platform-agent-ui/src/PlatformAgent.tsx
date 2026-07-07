@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import Markdown from "react-markdown";
 import {
   PageSection,
   Title,
@@ -33,6 +34,7 @@ const PlatformAgent: React.FC = () => {
     if (!text || loading) return;
 
     setInput("");
+    const history = [...messages];
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
@@ -40,7 +42,7 @@ const PlatformAgent: React.FC = () => {
       const res = await fetch("https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -134,7 +136,11 @@ const PlatformAgent: React.FC = () => {
                         wordBreak: "break-word",
                       }}
                     >
-                      {msg.content}
+                      {msg.role === "assistant" ? (
+                        <Markdown>{msg.content}</Markdown>
+                      ) : (
+                        msg.content
+                      )}
                     </div>
                   </div>
                 ))}
