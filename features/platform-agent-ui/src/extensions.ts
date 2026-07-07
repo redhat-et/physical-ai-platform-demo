@@ -3,13 +3,11 @@ const extensions = [
     type: "app.navigation/href",
     properties: {
       id: "platform-agent",
-      label: "Platform Agent",
+      title: "Platform Agent",
       href: "/physicalAiStudio/platformAgent",
       section: "physical-ai-studio",
-      dataAttributes: {
-        "data-testid": "platform-agent-nav",
-      },
-      description: "Experimental",
+      path: "/physicalAiStudio/platformAgent/*",
+      label: "Experimental",
     },
   },
   {

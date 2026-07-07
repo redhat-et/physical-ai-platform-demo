@@ -1,6 +1,8 @@
+import httpx
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.prebuilt import create_react_agent
+from openai import DefaultHttpxClient
 
 from platform_agent.config import settings
 from platform_agent.tools.models import list_models, get_model_status
@@ -30,6 +32,8 @@ def build_agent(use_tools: bool = True):
         model=settings.llm_model,
         api_key=settings.llm_api_key,
         temperature=0,
+        http_client=DefaultHttpxClient(verify=False),
+        http_async_client=httpx.AsyncClient(verify=False),
     )
 
     if use_tools:

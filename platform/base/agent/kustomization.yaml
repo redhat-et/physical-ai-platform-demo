@@ -10,3 +10,4 @@ resources:
   - ui-deployment.yaml
   - ui-service.yaml
   - nginx-config.yaml
+  - route.yaml

@@ -1,4 +1,4 @@
-IMAGE ?= quay.io/redhat-et/platform-agent-ui:latest
+IMAGE ?= quay.io/redhat-et/physical-ai-agent-ui:latest
 
 .PHONY: build push
 

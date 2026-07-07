@@ -18,7 +18,7 @@ spec:
       serviceAccountName: platform-agent
       containers:
         - name: agent
-          image: quay.io/rmalone/physical-ai-agent:latest
+          image: quay.io/redhat-et/physical-ai-agent:latest
           imagePullPolicy: Always
           ports:
             - name: http

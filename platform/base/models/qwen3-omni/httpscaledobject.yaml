@@ -6,7 +6,7 @@ metadata:
 spec:
   hosts:
   - qwen3-omni-predictor.physical-ai-models.svc.cluster.local
-  targetPendingRequests: 1
+  targetPendingRequests: 100
   scaleTargetRef:
     name: qwen3-omni-predictor
     kind: Deployment
@@ -15,5 +15,5 @@ spec:
     port: 80
   replicas:
     min: 0
-    max: 3
+    max: 1
   scaledownPeriod: 3600
