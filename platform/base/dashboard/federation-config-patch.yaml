@@ -188,7 +188,18 @@ data:
         "authorize": false,
         "tls": false,
         "service": {
-          "name": "robotics-playground-ui",
+          "name": "physical-ai-studio",
+          "namespace": "redhat-ods-applications",
+          "port": 8080
+        }
+      },
+      {
+        "name": "platformAgent",
+        "remoteEntry": "/remoteEntry.js",
+        "authorize": false,
+        "tls": false,
+        "service": {
+          "name": "platform-agent-ui",
           "namespace": "redhat-ods-applications",
           "port": 8080
         }

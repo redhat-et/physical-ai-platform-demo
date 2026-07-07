@@ -1,0 +1,141 @@
+---
+# Read access + experiment-mode writes in the models namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-agent
+  namespace: physical-ai-models
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events", "configmaps",
+                "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices", "servingruntimes"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["externalmodels", "maasmodelrefs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-agent
+  namespace: physical-ai-models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-agent
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
+---
+# Read access to MaaS subscriptions and auth policies
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-agent
+  namespace: models-as-a-service
+rules:
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["maassubscriptions", "maasauthpolicies"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-agent
+  namespace: models-as-a-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-agent
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
+---
+# Read access to infra namespace + Tekton pipeline execution
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-agent
+  namespace: physical-ai
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines", "tasks"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns"]
+    verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-agent
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-agent
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
+---
+# Read access to ArgoCD application status
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-agent
+  namespace: openshift-gitops
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-agent
+  namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-agent
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
+---
+# Cluster-scoped access for Prometheus metrics queries
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-agent-metrics-reader
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - nonResourceURLs: ["/api/v1/query", "/api/v1/query_range"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-agent-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-agent-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
