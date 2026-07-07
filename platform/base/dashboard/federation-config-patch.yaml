@@ -192,5 +192,23 @@ data:
           "namespace": "redhat-ods-applications",
           "port": 8080
         }
+      },
+      {
+        "name": "platformAgent",
+        "remoteEntry": "/remoteEntry.js",
+        "authorize": false,
+        "tls": false,
+        "proxy": [
+          {
+            "path": "/platform-agent/api",
+            "pathRewrite": "/api",
+            "timeout": 120000
+          }
+        ],
+        "service": {
+          "name": "platform-agent-ui",
+          "namespace": "redhat-ods-applications",
+          "port": 8080
+        }
       }
     ]

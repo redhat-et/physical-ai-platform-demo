@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-agent
+  namespace: physical-ai
+  labels:
+    app: platform-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-agent
+  template:
+    metadata:
+      labels:
+        app: platform-agent
+    spec:
+      serviceAccountName: platform-agent
+      containers:
+        - name: agent
+          image: quay.io/redhat-et/physical-ai-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: platform-agent-config
+          env:
+            - name: AGENT_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-agent-llm
+                  key: api-key
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 1Gi

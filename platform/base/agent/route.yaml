@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: platform-agent-api
+  namespace: physical-ai
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+spec:
+  to:
+    kind: Service
+    name: platform-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

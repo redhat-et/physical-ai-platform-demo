@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-agent-config
+  namespace: physical-ai
+  labels:
+    app: platform-agent
+data:
+  AGENT_MODELS_NAMESPACE: "physical-ai-models"
+  AGENT_INFRA_NAMESPACE: "physical-ai"
+  AGENT_MAAS_NAMESPACE: "models-as-a-service"
+  AGENT_LLM_BASE_URL: "https://maas-proxy.physical-ai-models.svc.cluster.local/physical-ai-models/qwen3-omni/v1"
+  AGENT_LLM_MODEL: "qwen3-omni"
+  AGENT_LLM_API_KEY: "unused"
+  PLATFORM_REPO_URL: "https://github.com/redhat-et/physical-ai-platform-demo.git"
+  PLATFORM_REPO_BRANCH: "main"
+  TARGET_OVERLAY: "dev-gpu"
+  ARGOCD_APP_NAME: "physical-ai-platform-dev-gpu"
+  PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc:9091"
+  MLFLOW_URL: "http://mlflow.physical-ai.svc:5000"
