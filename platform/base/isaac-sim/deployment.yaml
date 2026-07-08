@@ -15,6 +15,9 @@ spec:
       labels:
         app: isaac-lab
     spec:
+      serviceAccountName: isaac-lab
+      securityContext:
+        runAsUser: 1234
       nodeSelector:
         nvidia.com/gpu.product: NVIDIA-L40S
       containers:
