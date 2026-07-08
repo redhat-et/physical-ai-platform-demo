@@ -34,28 +34,54 @@ data:
     import torch
 
     import isaaclab.sim as sim_utils
-    from isaaclab.assets import Articulation
+    from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
     from isaaclab.sensors import Camera, CameraCfg
-    from isaaclab_assets import FRANKA_PANDA_CFG
+    from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG
 
+
+    TABLE_HEIGHT = 1.05
+    CUBE_SIZE = 0.06
+    CUBE_CONFIGS = {
+        "blue": {
+            "pos": (0.35, -0.12, TABLE_HEIGHT + CUBE_SIZE / 2),
+            "color": (0.2, 0.3, 0.9),
+        },
+        "red": {
+            "pos": (0.45, 0.08, TABLE_HEIGHT + CUBE_SIZE / 2),
+            "color": (0.9, 0.2, 0.2),
+        },
+        "green": {
+            "pos": (0.50, -0.05, TABLE_HEIGHT + CUBE_SIZE / 2),
+            "color": (0.2, 0.8, 0.3),
+        },
+    }
+
+
+    # Manipulation-ready pose (from FrankaCubeStackEnvCfg)
+    DEFAULT_JOINT_POS = [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.04, 0.04]
 
     CAM_WIDTH = 320
     CAM_HEIGHT = 180
-    CAM_UPDATE_PERIOD = 0.0
-    CAM_PUBLISH_INTERVAL = 12
+    CAM_UPDATE_PERIOD = 0.0  # update every step; we throttle publishing ourselves
+    CAM_PUBLISH_INTERVAL = 12  # publish every N physics steps (~5 Hz at 60 Hz physics)
 
     CAMERA_CONFIGS = {
         "wrist": CameraCfg(
-            prim_path="/World/WristCamMount/wrist_cam",
+            prim_path="/World/Robot/panda_hand/wrist_cam",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.04, 0.0, 0.05),
+                rot=(0.7071068, 0.0, 0.0, 0.7071068),
+                convention="ros",
+            ),
             update_period=CAM_UPDATE_PERIOD,
             height=CAM_HEIGHT,
             width=CAM_WIDTH,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
+                focal_length=1.93,
                 focus_distance=400.0,
-                horizontal_aperture=20.955,
-                clipping_range=(0.01, 20.0),
+                horizontal_aperture=3.6,
+                clipping_range=(0.01, 5.0),
             ),
         ),
         "exterior_1": CameraCfg(
@@ -98,7 +124,8 @@ data:
         mgr.set_extension_enabled_immediate(name, True)
 
 
-    def numpy_to_image_msg(Image, Time, rgb, sec, nsec):
+    def numpy_to_image_msg(Image, Time, rgb: np.ndarray, sec: int, nsec: int):
+        """Convert a numpy RGB array to sensor_msgs/Image without cv_bridge."""
         msg = Image()
         msg.header.stamp = Time(sec=sec, nanosec=nsec)
         msg.height = rgb.shape[0]
@@ -117,19 +144,44 @@ data:
         cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         cfg.func("/World/Light", cfg)
 
-        sim_utils.create_prim("/World/WristCamMount", "Xform")
+        # Table surface (with collision so cubes rest on it)
+        cfg = sim_utils.CuboidCfg(
+            size=(0.8, 0.8, TABLE_HEIGHT),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.5, 0.4)),
+        )
+        cfg.func("/World/Table", cfg, translation=(0.4, 0.0, TABLE_HEIGHT / 2))
+
         sim_utils.create_prim("/World/ExtCam1", "Xform")
         sim_utils.create_prim("/World/ExtCam2", "Xform")
 
-        franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
-        franka_cfg.init_state.pos = (0.0, 0.0, 1.05)
+        franka_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/Robot")
+        franka_cfg.init_state.pos = (0.0, 0.0, TABLE_HEIGHT)
         franka = Articulation(cfg=franka_cfg)
+
+        # Colored cubes on the table
+        cubes = {}
+        for name, cube_info in CUBE_CONFIGS.items():
+            cube_cfg = RigidObjectCfg(
+                prim_path=f"/World/{name}_cube",
+                spawn=sim_utils.CuboidCfg(
+                    size=(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    visual_material=sim_utils.PreviewSurfaceCfg(
+                        diffuse_color=cube_info["color"],
+                    ),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=cube_info["pos"]),
+            )
+            cubes[name] = RigidObject(cfg=cube_cfg)
 
         cameras = {}
         for name, cam_cfg in CAMERA_CONFIGS.items():
             cameras[name] = Camera(cfg=cam_cfg)
 
-        return {"franka": franka, "cameras": cameras}
+        return {"franka": franka, "cameras": cameras, "cubes": cubes}
 
 
     def main():
@@ -150,21 +202,24 @@ data:
         sim.reset()
 
         cameras = scene_entities["cameras"]
+        cubes = scene_entities["cubes"]
+        franka = scene_entities["franka"]
 
+        # Target pose for PD controller — applied each sim step
+        target_joint_pos = torch.tensor([DEFAULT_JOINT_POS], dtype=torch.float32, device=sim.device)
+
+        # Position exterior cameras after sim.reset() allocates buffers
         device = sim.device
-        cameras["wrist"].set_world_poses_from_view(
-            eyes=torch.tensor([[0.3, 0.0, 1.3]], device=device),
-            targets=torch.tensor([[0.5, 0.0, 1.05]], device=device),
-        )
         cameras["exterior_1"].set_world_poses_from_view(
-            eyes=torch.tensor([[1.5, -1.0, 2.0]], device=device),
-            targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+            eyes=torch.tensor([[1.5, -0.8, 1.8]], device=device),
+            targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
         )
         cameras["exterior_2"].set_world_poses_from_view(
-            eyes=torch.tensor([[1.5, 1.0, 2.0]], device=device),
-            targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+            eyes=torch.tensor([[1.5, 0.8, 1.8]], device=device),
+            targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
         )
 
+        # rclpy.init() already called by isaacsim.ros2.bridge extension
         node = rclpy.create_node("isaac_sim_bridge")
         joint_pub = node.create_publisher(JointState, "/joint_states", 10)
         clock_pub = node.create_publisher(Clock, "/clock", 10)
@@ -176,13 +231,13 @@ data:
         spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
         spin_thread.start()
 
-        franka = scene_entities["franka"]
         joint_names = [
             "panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4",
             "panda_joint5", "panda_joint6", "panda_joint7",
             "panda_finger_joint1", "panda_finger_joint2",
         ]
 
+        # Track last published camera frame to avoid duplicates
         last_cam_frame = {name: -1 for name in cameras}
 
         sys.stdout.write("[INFO] Scene ready. 3 cameras + ROS 2 rclpy bridge active.\n")
@@ -191,8 +246,12 @@ data:
         sim_dt = sim.get_physics_dt()
         count = 0
         while simulation_app.is_running():
+            franka.set_joint_position_target(target_joint_pos)
+            franka.write_data_to_sim()
             sim.step()
             franka.update(sim_dt)
+            for cube in cubes.values():
+                cube.update(sim_dt)
 
             for cam in cameras.values():
                 cam.update(sim_dt)
@@ -223,6 +282,7 @@ data:
                 clk.clock = Time(sec=sec, nanosec=nsec)
                 clock_pub.publish(clk)
 
+                # Publish camera images at throttled rate
                 if count % CAM_PUBLISH_INTERVAL == 0:
                     for name, cam in cameras.items():
                         frame_idx = cam.frame[0].item()
