@@ -29,6 +29,8 @@ spec:
           env:
             - name: LD_LIBRARY_PATH
               value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib
+            - name: PYTHONPATH
+              value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/rclpy:/isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib/python3.10/site-packages
           volumeMounts:
             - name: launch-script
               mountPath: /app
