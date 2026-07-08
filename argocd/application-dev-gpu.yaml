@@ -63,3 +63,10 @@ spec:
         - /metadata/annotations
         - /metadata/labels
         - /metadata/ownerReferences
+    # Model download Jobs are immutable after creation; ignore spec
+    # diffs so they don't block autosync. Delete the Job manually to
+    # re-trigger a download when the model version changes.
+    - group: batch
+      kind: Job
+      jsonPointers:
+        - /spec/template
