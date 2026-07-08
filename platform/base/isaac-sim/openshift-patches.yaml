@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: isaac-lab
+spec:
+  template:
+    spec:
+      serviceAccountName: isaac-lab
+      securityContext:
+        runAsUser: 1234
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-L40S
