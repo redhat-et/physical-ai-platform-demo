@@ -40,9 +40,14 @@ spec:
               value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
             - name: ROS_DISCOVERY_SERVER
               value: fastdds-discovery:11811
+            - name: FASTRTPS_DEFAULT_PROFILES_FILE
+              value: /etc/fastdds/fastdds-client.xml
           volumeMounts:
             - name: config
               mountPath: /etc/robotics-playground
+              readOnly: true
+            - name: fastdds-config
+              mountPath: /etc/fastdds
               readOnly: true
           readinessProbe:
             httpGet:
@@ -60,3 +65,6 @@ spec:
         - name: config
           configMap:
             name: robotics-playground-config
+        - name: fastdds-config
+          configMap:
+            name: fastdds-client-config
