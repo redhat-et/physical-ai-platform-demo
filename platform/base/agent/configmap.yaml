@@ -12,6 +12,7 @@ data:
   AGENT_LLM_BASE_URL: "https://maas-proxy.physical-ai-models.svc.cluster.local/physical-ai-models/qwen3-omni/v1"
   AGENT_LLM_MODEL: "qwen3-omni"
   AGENT_LLM_API_KEY: "unused"
+  AGENT_MAAS_PROXY_URL: "https://maas-proxy.physical-ai-models.svc.cluster.local"
   PLATFORM_REPO_URL: "https://github.com/redhat-et/physical-ai-platform-demo.git"
   PLATFORM_REPO_BRANCH: "main"
   TARGET_OVERLAY: "dev-gpu"
