@@ -26,6 +26,8 @@ spec:
           env:
             - name: PLAYGROUND_CONFIG
               value: /etc/robotics-playground/config.yaml
+            - name: WS_EXTERNAL_URL
+              value: "wss://robotics-playground-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
           volumeMounts:
             - name: config
               mountPath: /etc/robotics-playground

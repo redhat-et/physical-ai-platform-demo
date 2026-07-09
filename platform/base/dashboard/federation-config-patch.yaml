@@ -187,6 +187,16 @@ data:
         "remoteEntry": "/remoteEntry.js",
         "authorize": false,
         "tls": false,
+        "proxy": [
+          {
+            "path": "/physical-ai/api",
+            "pathRewrite": "/api"
+          },
+          {
+            "path": "/physical-ai/ws",
+            "pathRewrite": "/ws"
+          }
+        ],
         "service": {
           "name": "robotics-playground-ui",
           "namespace": "redhat-ods-applications",
