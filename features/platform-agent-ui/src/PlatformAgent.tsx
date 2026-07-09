@@ -17,6 +17,7 @@ import {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  toolsCalled?: string[];
 }
 
 const PlatformAgent: React.FC = () => {
@@ -29,6 +30,8 @@ const PlatformAgent: React.FC = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const [statusText, setStatusText] = useState("");
+
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -37,29 +40,66 @@ const PlatformAgent: React.FC = () => {
     const history = [...messages];
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
+    setStatusText("");
 
     try {
       const res = await fetch("https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, history }),
+        signal: AbortSignal.timeout(300000),
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.response || "No response from agent." },
-      ]);
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6);
+          if (payload === "[DONE]") continue;
+
+          try {
+            const data = JSON.parse(payload);
+            if (data.status) {
+              setStatusText(data.status);
+            } else if (data.response) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: data.response,
+                  toolsCalled: data.tools_called || [],
+                },
+              ]);
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Error: could not reach the agent (${msg}). Tool-calling requests may take up to 60s — please try again.` },
+        { role: "assistant", content: `Error: could not reach the agent (${msg}).` },
       ]);
     } finally {
       setLoading(false);
+      setStatusText("");
     }
   };
 
@@ -136,6 +176,11 @@ const PlatformAgent: React.FC = () => {
                         wordBreak: "break-word",
                       }}
                     >
+                      {msg.role === "assistant" && msg.toolsCalled && msg.toolsCalled.length > 0 && (
+                        <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "var(--pf-t--global--color--nonstatus--gray--default)" }}>
+                          Used: {msg.toolsCalled.join(", ")}
+                        </div>
+                      )}
                       {msg.role === "assistant" ? (
                         <Markdown>{msg.content}</Markdown>
                       ) : (
@@ -145,8 +190,13 @@ const PlatformAgent: React.FC = () => {
                   </div>
                 ))}
                 {loading && (
-                  <div style={{ marginBottom: "0.75rem" }}>
+                  <div style={{ marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <Spinner size="md" />
+                    {statusText && (
+                      <span style={{ color: "var(--pf-t--global--color--nonstatus--gray--default)", fontSize: "0.85rem" }}>
+                        {statusText}
+                      </span>
+                    )}
                   </div>
                 )}
                 <div ref={bottomRef} />
