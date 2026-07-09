@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../../base
   - ../../base/isaac-sim/
+  - ../../base/fastdds-discovery/
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
 

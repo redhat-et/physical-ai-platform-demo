@@ -10,3 +10,8 @@ spec:
         runAsUser: 1234
       nodeSelector:
         nvidia.com/gpu.product: NVIDIA-L40S
+      containers:
+        - name: isaac-lab
+          env:
+            - name: ROS_DISCOVERY_SERVER
+              value: fastdds-discovery:11811

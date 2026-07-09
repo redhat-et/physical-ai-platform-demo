@@ -38,6 +38,8 @@ spec:
               value: "https://robotics-playground-rerun-web-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
             - name: RERUN_GRPC_URL
               value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+            - name: ROS_DISCOVERY_SERVER
+              value: fastdds-discovery:11811
           volumeMounts:
             - name: config
               mountPath: /etc/robotics-playground
