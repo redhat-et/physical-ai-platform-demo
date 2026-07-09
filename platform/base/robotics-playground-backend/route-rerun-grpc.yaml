@@ -3,6 +3,8 @@ kind: Route
 metadata:
   name: robotics-playground-rerun-grpc
   namespace: physical-ai
+  annotations:
+    haproxy.router.openshift.io/timeout: 300s
 spec:
   tls:
     termination: edge
