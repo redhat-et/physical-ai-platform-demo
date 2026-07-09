@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: isaac-lab
 spec:
+  strategy:
+    type: Recreate
   template:
     spec:
       serviceAccountName: isaac-lab
@@ -15,3 +17,12 @@ spec:
           env:
             - name: ROS_DISCOVERY_SERVER
               value: fastdds-discovery:11811
+          volumeMounts:
+            - name: fastdds-config
+              mountPath: /workspace/isaaclab/docker/.ros/fastdds.xml
+              subPath: fastdds-client.xml
+              readOnly: true
+      volumes:
+        - name: fastdds-config
+          configMap:
+            name: fastdds-client-config
