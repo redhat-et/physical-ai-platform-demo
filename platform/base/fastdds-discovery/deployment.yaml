@@ -21,7 +21,8 @@ spec:
     spec:
       containers:
         - name: discovery-server
-          image: eprosima/discovery-server:v2
+          image: docker.io/ros:jazzy
+          command: ["fastdds", "discovery", "-i", "0", "-l", "0.0.0.0", "-p", "11811"]
           ports:
             - name: discovery
               containerPort: 11811
