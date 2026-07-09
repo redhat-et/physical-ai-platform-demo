@@ -13,3 +13,11 @@ spec:
       port: 8000
       targetPort: http
       protocol: TCP
+    - name: rerun-web
+      port: 9090
+      targetPort: rerun-web
+      protocol: TCP
+    - name: rerun-grpc
+      port: 9876
+      targetPort: rerun-grpc
+      protocol: TCP
