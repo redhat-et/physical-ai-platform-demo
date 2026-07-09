@@ -1,11 +1,6 @@
-import logging
-import threading
-
-import httpx
-
-logger = logging.getLogger(__name__)
 from langchain_core.tools import tool
 from kubernetes import client
+from kubernetes.client import AppsV1Api
 
 from platform_agent.config import settings
 
@@ -98,27 +93,6 @@ def get_model_status(model_name: str) -> str:
     return output
 
 
-def _trigger_scale_up(model_name: str):
-    """Fire a request to the MaaS proxy to trigger KEDA scale-up."""
-    url = (
-        f"{settings.maas_proxy_url}/physical-ai-models/"
-        f"{model_name}/v1/chat/completions"
-    )
-    try:
-        with httpx.Client(verify=False, timeout=300.0) as http_client:
-            http_client.post(
-                url,
-                json={
-                    "model": model_name,
-                    "messages": [{"role": "user", "content": "ping"}],
-                    "max_tokens": 1,
-                },
-                headers={"Authorization": "Bearer unused"},
-            )
-    except Exception:
-        logger.warning("scale-up ping failed for %s", model_name, exc_info=True)
-
-
 @tool
 def scale_model(model_name: str, min_replicas: int) -> str:
     """Scale a model by setting its minReplicas. Use 1 to bring a model up
@@ -144,25 +118,44 @@ def scale_model(model_name: str, min_replicas: int) -> str:
             return f"InferenceService '{model_name}' not found."
         return f"Failed to scale '{model_name}': {e.reason}"
 
+    scaler_name = f"{model_name}-http-scaler"
+    try:
+        custom_api.patch_namespaced_custom_object(
+            group="http.keda.sh",
+            version="v1alpha1",
+            namespace=settings.models_namespace,
+            plural="httpscaledobjects",
+            name=scaler_name,
+            body={"spec": {"replicas": {"min": min_replicas}}},
+        )
+    except client.exceptions.ApiException:
+        pass
+
     if min_replicas == 0:
+        apps_api = AppsV1Api()
+        deploy_name = f"{model_name}-predictor"
+        try:
+            apps_api.patch_namespaced_deployment_scale(
+                name=deploy_name,
+                namespace=settings.models_namespace,
+                body={"spec": {"replicas": 0}},
+            )
+        except client.exceptions.ApiException:
+            pass
         pods = core_api.list_namespaced_pod(
             namespace=settings.models_namespace,
             label_selector=f"serving.kserve.io/inferenceservice={model_name}",
         )
+        deleted = 0
         for pod in pods.items:
             core_api.delete_namespaced_pod(
                 name=pod.metadata.name,
                 namespace=settings.models_namespace,
             )
+            deleted += 1
         return (
-            f"Scaled '{model_name}' to minReplicas=0 and deleted {len(pods.items)} "
-            f"pod(s). KEDA will keep it at zero until the next request."
+            f"Shut down '{model_name}' — deleted {deleted} pod(s). "
+            f"Model is now scaled to zero."
         )
 
-    threading.Thread(
-        target=_trigger_scale_up, args=(model_name,), daemon=True
-    ).start()
-    return (
-        f"Set '{model_name}' minReplicas={min_replicas} and triggered a scale-up "
-        f"request — it may take a few minutes to become ready."
-    )
+    return f"Scaled '{model_name}' to minReplicas={min_replicas}. Model will start up shortly."
