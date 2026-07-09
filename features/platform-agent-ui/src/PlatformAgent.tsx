@@ -17,6 +17,7 @@ import {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  toolsCalled?: string[];
 }
 
 const PlatformAgent: React.FC = () => {
@@ -56,10 +57,8 @@ const PlatformAgent: React.FC = () => {
       if (!reader) throw new Error("No response stream");
 
       const decoder = new TextDecoder();
-      let assistantContent = "";
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
       let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -75,44 +74,22 @@ const PlatformAgent: React.FC = () => {
 
           try {
             const data = JSON.parse(payload);
-            if (data.token) {
-              assistantContent += data.token;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  role: "assistant",
-                  content: assistantContent,
-                };
-                return updated;
-              });
-            } else if (data.status) {
+            if (data.status) {
               setStatusText(data.status);
-            } else if (data.error) {
-              assistantContent += `\n\nError: ${data.error}`;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
+            } else if (data.response) {
+              setMessages((prev) => [
+                ...prev,
+                {
                   role: "assistant",
-                  content: assistantContent,
-                };
-                return updated;
-              });
+                  content: data.response,
+                  toolsCalled: data.tools_called || [],
+                },
+              ]);
             }
           } catch {
             // skip malformed JSON
           }
         }
-      }
-
-      if (!assistantContent) {
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: "No response from agent.",
-          };
-          return updated;
-        });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -199,6 +176,11 @@ const PlatformAgent: React.FC = () => {
                         wordBreak: "break-word",
                       }}
                     >
+                      {msg.role === "assistant" && msg.toolsCalled && msg.toolsCalled.length > 0 && (
+                        <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "var(--pf-t--global--color--nonstatus--gray--default)" }}>
+                          Used: {msg.toolsCalled.join(", ")}
+                        </div>
+                      )}
                       {msg.role === "assistant" ? (
                         <Markdown>{msg.content}</Markdown>
                       ) : (

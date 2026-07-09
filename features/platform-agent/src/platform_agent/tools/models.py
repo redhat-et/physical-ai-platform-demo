@@ -1,6 +1,9 @@
+import logging
 import threading
 
 import httpx
+
+logger = logging.getLogger(__name__)
 from langchain_core.tools import tool
 from kubernetes import client
 
@@ -113,7 +116,7 @@ def _trigger_scale_up(model_name: str):
                 headers={"Authorization": "Bearer unused"},
             )
     except Exception:
-        pass
+        logger.warning("scale-up ping failed for %s", model_name, exc_info=True)
 
 
 @tool
@@ -128,39 +131,38 @@ def scale_model(model_name: str, min_replicas: int) -> str:
     custom_api, core_api = _get_k8s_client()
 
     try:
-        custom_api.get_namespaced_custom_object(
+        custom_api.patch_namespaced_custom_object(
             group="serving.kserve.io",
             version="v1beta1",
             namespace=settings.models_namespace,
             plural="inferenceservices",
             name=model_name,
+            body={"spec": {"predictor": {"minReplicas": min_replicas}}},
         )
     except client.exceptions.ApiException as e:
         if e.status == 404:
             return f"InferenceService '{model_name}' not found."
-        return f"Failed to look up '{model_name}': {e.reason}"
+        return f"Failed to scale '{model_name}': {e.reason}"
 
     if min_replicas == 0:
         pods = core_api.list_namespaced_pod(
             namespace=settings.models_namespace,
             label_selector=f"serving.kserve.io/inferenceservice={model_name}",
         )
-        deleted = 0
         for pod in pods.items:
             core_api.delete_namespaced_pod(
                 name=pod.metadata.name,
                 namespace=settings.models_namespace,
             )
-            deleted += 1
         return (
-            f"Shut down '{model_name}' — deleted {deleted} pod(s). "
-            f"KEDA will keep it at zero until the next request."
+            f"Scaled '{model_name}' to minReplicas=0 and deleted {len(pods.items)} "
+            f"pod(s). KEDA will keep it at zero until the next request."
         )
 
     threading.Thread(
         target=_trigger_scale_up, args=(model_name,), daemon=True
     ).start()
     return (
-        f"Triggered scale-up for '{model_name}'. A request has been sent through "
-        f"MaaS to wake the model — it may take a few minutes to become ready."
+        f"Set '{model_name}' minReplicas={min_replicas} and triggered a scale-up "
+        f"request — it may take a few minutes to become ready."
     )
