@@ -10,6 +10,7 @@ metadata:
     serving.kserve.io/deploymentMode: RawDeployment
     serving.kserve.io/autoscalerClass: external
     sidecar.istio.io/inject: "false"
+    physical-ai.io/output-kind: chat
 spec:
   predictor:
     minReplicas: 0

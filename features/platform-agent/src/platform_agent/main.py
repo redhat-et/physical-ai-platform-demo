@@ -1,12 +1,17 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from platform_agent import media_store
 from platform_agent.agent import build_agent
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 agent_mode = None
 agent = None
@@ -45,6 +50,15 @@ def health():
     return {"status": "ok", "mode": agent_mode}
 
 
+@app.get("/api/media/{media_id}")
+def get_media(media_id: str):
+    entry = media_store.get(media_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Media not found or expired.")
+    data, mime = entry
+    return Response(content=data, media_type=mime)
+
+
 MAX_HISTORY_CHARS = 20000
 
 
@@ -72,11 +86,30 @@ async def _stream_chat(messages: list[dict]):
                         name = getattr(tm, "name", "tool")
                         tools_called.append(name)
                         yield f"data: {json.dumps({'status': f'Calling {name}...'})}\n\n"
+                        logger.info(
+                            "tool result: name=%s status=%s content=%r",
+                            name,
+                            getattr(tm, "status", "unknown"),
+                            str(getattr(tm, "content", ""))[:300],
+                        )
+                        artifact = getattr(tm, "artifact", None)
+                        if isinstance(artifact, dict) and artifact.get("media_id"):
+                            media = {
+                                "kind": artifact["kind"],
+                                "url": f"/api/media/{artifact['media_id']}",
+                            }
+                            yield f"data: {json.dumps({'media': media})}\n\n"
                 elif node == "agent":
                     for msg in updates.get("messages", []):
+                        tool_calls = getattr(msg, "tool_calls", None)
+                        if tool_calls:
+                            logger.info(
+                                "agent requested tool calls: %s",
+                                [(tc.get("name"), tc.get("args")) for tc in tool_calls],
+                            )
                         content = getattr(msg, "content", "")
                         if content and isinstance(content, str):
-                            if not getattr(msg, "tool_calls", None):
+                            if not tool_calls:
                                 response_text = content
     except Exception as e:
         response_text = f"Agent error: {e}"

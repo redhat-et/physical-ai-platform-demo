@@ -4,7 +4,7 @@ metadata:
   name: platform-agent-api
   namespace: physical-ai
   annotations:
-    haproxy.router.openshift.io/timeout: 120s
+    haproxy.router.openshift.io/timeout: 300s
 spec:
   to:
     kind: Service

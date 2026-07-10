@@ -9,6 +9,7 @@ metadata:
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
     sidecar.istio.io/inject: "false"
+    physical-ai.io/output-kind: chat
 spec:
   predictor:
     minReplicas: 0
