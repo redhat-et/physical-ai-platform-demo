@@ -45,11 +45,11 @@ spec:
       requests:
         cpu: "4"
         memory: 64Gi
-        nvidia.com/gpu: "4"
+        nvidia.com/gpu: "1"
       limits:
         cpu: "8"
         memory: 128Gi
-        nvidia.com/gpu: "4"
+        nvidia.com/gpu: "1"
   volumes:
   - name: deploy-config
     configMap:
