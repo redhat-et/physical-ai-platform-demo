@@ -50,10 +50,10 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
-              memory: 512Mi
+              memory: 2Gi
         - name: zenoh-bridge
           image: eclipse/zenoh-bridge-ros2dds:1.9.0
           args: ["-c", "/etc/zenoh/config.json5"]
