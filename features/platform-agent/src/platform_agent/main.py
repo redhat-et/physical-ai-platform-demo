@@ -2,6 +2,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from platform_agent import media_store
 from platform_agent.agent import build_agent
+from platform_agent.config import settings
+from platform_agent.tools.models import get_model_readiness
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,6 +60,27 @@ def get_media(media_id: str):
         raise HTTPException(status_code=404, detail="Media not found or expired.")
     data, mime = entry
     return Response(content=data, media_type=mime)
+
+
+@app.get("/api/model/status")
+def model_status():
+    """Readiness check for the agent's own backing LLM — safe to call before
+    the model is up, since it doesn't go through the LLM itself."""
+    return get_model_readiness(settings.llm_model)
+
+
+@app.post("/api/model/start")
+async def start_model():
+    """Fire a lightweight MaaS request to trigger KEDA's scale-from-zero via
+    the HTTP interceptor. Doesn't wait for readiness — the UI polls
+    /api/model/status separately for that."""
+    url = f"{settings.maas_proxy_url}/physical-ai-models/{settings.llm_model}/v1/models"
+    try:
+        async with httpx.AsyncClient(verify=False, timeout=5.0) as http_client:
+            await http_client.get(url, headers={"Authorization": "Bearer unused"})
+    except Exception:
+        logger.info("start_model: trigger request to %s did not complete (expected while cold)", url)
+    return {"status": "triggered"}
 
 
 MAX_HISTORY_CHARS = 20000

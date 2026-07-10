@@ -13,6 +13,7 @@ import {
   Spinner,
   Label,
 } from "@patternfly/react-core";
+import ModelStartupGate, { ModelGateState } from "./ModelStartupGate";
 
 interface Message {
   role: "user" | "assistant";
@@ -23,15 +24,70 @@ interface Message {
 
 const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com";
 
+const POLL_INTERVAL_MS = 10000;
+const SLOW_WARNING_MS = 8 * 60 * 1000;
+
 const PlatformAgent: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const [modelState, setModelState] = useState<ModelGateState | "ready">("checking");
+  const [modelDetail, setModelDetail] = useState("");
+  const [slowWarning, setSlowWarning] = useState<string | undefined>(undefined);
+  const startedAtRef = useRef<number | null>(null);
+
+  const checkModelStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/model/status`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const state: string = data.state;
+      setModelDetail(data.detail || "");
+      setModelState(state === "not_started" ? "not_ready" : (state as ModelGateState));
+    } catch {
+      setModelDetail("Could not reach the agent to check model status.");
+      setModelState("error");
+    }
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    checkModelStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (modelState !== "starting") {
+      setSlowWarning(undefined);
+      return;
+    }
+    if (startedAtRef.current === null) {
+      startedAtRef.current = Date.now();
+    }
+    const id = setInterval(() => {
+      if (startedAtRef.current && Date.now() - startedAtRef.current > SLOW_WARNING_MS) {
+        setSlowWarning(
+          "Still starting — this is taking longer than the ~5 minutes it usually takes."
+        );
+      }
+      checkModelStatus();
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelState]);
+
+  const startModel = async () => {
+    setModelState("starting");
+    setModelDetail("Sending start request...");
+    startedAtRef.current = Date.now();
+    try {
+      await fetch(`${API_BASE}/api/model/start`, { method: "POST" });
+    } catch {
+      // ignore — readiness polling will surface the real state
+    }
+    checkModelStatus();
+  };
 
   const [statusText, setStatusText] = useState("");
 
@@ -136,6 +192,19 @@ const PlatformAgent: React.FC = () => {
         </Flex>
       </PageSection>
 
+      {modelState !== "ready" && (
+        <PageSection isFilled>
+          <ModelStartupGate
+            state={modelState}
+            detail={modelDetail}
+            slowWarning={slowWarning}
+            onStart={startModel}
+            onRetry={startModel}
+          />
+        </PageSection>
+      )}
+
+      {modelState === "ready" && (
       <PageSection padding={{ default: "noPadding" }} isFilled>
         <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "0 1rem 1rem" }}>
           <Panel
@@ -250,6 +319,7 @@ const PlatformAgent: React.FC = () => {
           </Flex>
         </div>
       </PageSection>
+      )}
     </>
   );
 };
