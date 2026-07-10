@@ -1,0 +1,22 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: qwen25-cpu
+  namespace: physical-ai-models
+spec:
+  provider: openai
+  endpoint: qwen25-cpu-predictor.physical-ai-models.svc.cluster.local
+  targetModel: qwen25-cpu
+  credentialRef:
+    name: qwen25-cpu-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: qwen25-cpu-credentials
+  namespace: physical-ai-models
+  labels:
+    inference.networking.k8s.io/bbr-managed: "true"
+type: Opaque
+stringData:
+  api-key: not-used

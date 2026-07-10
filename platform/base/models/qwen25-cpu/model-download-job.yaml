@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-qwen25-cpu-model
+  namespace: physical-ai-models
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: downloader
+        image: python:3.11-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          pip install -q huggingface_hub
+          python3 << 'PYEOF'
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id='Qwen/Qwen2.5-1.5B-Instruct',
+              local_dir='/mnt/models',
+          )
+          print("Download complete!")
+          import os
+          print(f"Files: {len(os.listdir('/mnt/models'))}")
+          PYEOF
+        volumeMounts:
+        - name: model-storage
+          mountPath: /mnt/models
+        resources:
+          requests:
+            cpu: "1"
+            memory: 2Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: qwen25-cpu-model-cache
