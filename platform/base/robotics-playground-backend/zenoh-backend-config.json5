@@ -1,0 +1,15 @@
+{
+  mode: "client",
+  connect: {
+    endpoints: ["tcp/isaac-lab-zenoh:7447"]
+  },
+  plugins: {
+    ros2dds: {
+      ros_localhost_only: true,
+      deny: {
+        publishers: ["/rosout", "/parameter_events"],
+        subscribers: ["/rosout", "/parameter_events"]
+      }
+    }
+  }
+}

@@ -8,3 +8,10 @@ resources:
   - route-rerun-web.yaml
   - route-rerun-grpc.yaml
   - config.yaml
+
+configMapGenerator:
+  - name: zenoh-backend-config
+    files:
+      - config.json5=zenoh-backend-config.json5
+    options:
+      disableNameSuffixHash: true
