@@ -34,7 +34,7 @@ spec:
 
       # Install guardrail dependencies (excluding torch to avoid conflicts)
       pip install --target=/tmp/packages --no-deps \
-        attrs better-profanity nltk opencv-python peft pillow \
+        attrs better-profanity defusedxml nltk opencv-python peft pillow \
         requests retinaface-py safetensors scikit-image \
         sentencepiece tqdm
 
