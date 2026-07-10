@@ -1,0 +1,47 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-cpu-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: docker.io/vllm/vllm-openai-cpu:v0.24.0-x86_64
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      vllm serve /mnt/models \
+        --port=8080 \
+        --served-model-name={{.Name}} \
+        --trust-remote-code \
+        --enable-auto-tool-choice \
+        --tool-call-parser hermes \
+        --max-model-len 8192
+    env:
+    - name: VLLM_CPU_KVCACHE_SPACE
+      value: "4"
+    - name: OMP_NUM_THREADS
+      value: "4"
+    - name: HF_HOME
+      value: /tmp/hf_home
+    resources:
+      requests:
+        cpu: "2"
+        memory: 6Gi
+      limits:
+        cpu: "4"
+        memory: 10Gi
+  supportedModelFormats:
+  - name: vllm
+    autoSelect: true
