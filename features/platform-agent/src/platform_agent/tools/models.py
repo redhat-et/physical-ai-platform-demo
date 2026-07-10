@@ -131,6 +131,34 @@ def scale_model(model_name: str, min_replicas: int) -> str:
     except client.exceptions.ApiException:
         pass
 
+    # The HTTPScaledObject's own scaledownPeriod (idle cooldown, often ~1hr)
+    # otherwise keeps its generated ScaledObject/HPA pinned at minReplicas=1
+    # while "active", fighting any direct scale-down below. KEDA's pause
+    # annotation is the documented way to force an exact replica count
+    # regardless of triggers/cooldown; not all models have this scaler
+    # (always-on models like mocklm don't), so 404s are expected.
+    try:
+        if min_replicas == 0:
+            custom_api.patch_namespaced_custom_object(
+                group="keda.sh",
+                version="v1alpha1",
+                namespace=settings.models_namespace,
+                plural="scaledobjects",
+                name=scaler_name,
+                body={"metadata": {"annotations": {"autoscaling.keda.sh/paused-replicas": "0"}}},
+            )
+        else:
+            custom_api.patch_namespaced_custom_object(
+                group="keda.sh",
+                version="v1alpha1",
+                namespace=settings.models_namespace,
+                plural="scaledobjects",
+                name=scaler_name,
+                body={"metadata": {"annotations": {"autoscaling.keda.sh/paused-replicas": None}}},
+            )
+    except client.exceptions.ApiException:
+        pass
+
     if min_replicas == 0:
         apps_api = AppsV1Api()
         deploy_name = f"{model_name}-predictor"
