@@ -12,6 +12,7 @@ metadata:
     serving.kserve.io/autoscalerClass: external
     # Disable Istio sidecar injection to prevent multiprocessing interference
     sidecar.istio.io/inject: "false"
+    physical-ai.io/output-kind: "image,video"
 spec:
   predictor:
     minReplicas: 0

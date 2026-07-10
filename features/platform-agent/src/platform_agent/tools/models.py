@@ -87,7 +87,12 @@ def get_model_status(model_name: str) -> str:
             f"  {pod.metadata.name}: phase={pod.status.phase}, restarts={restarts}"
         )
 
+    output_kind = isvc["metadata"].get("annotations", {}).get(
+        "physical-ai.io/output-kind", "chat"
+    )
+
     output = f"InferenceService: {model_name}\n"
+    output += f"Output kind: {output_kind}\n"
     output += "Conditions:\n" + "\n".join(cond_lines) + "\n" if cond_lines else ""
     output += f"Pods ({len(pods.items)}):\n" + "\n".join(pod_lines) if pod_lines else "Pods: none (likely scaled to zero)"
     return output
@@ -136,7 +141,7 @@ def scale_model(model_name: str, min_replicas: int) -> str:
     # while "active", fighting any direct scale-down below. KEDA's pause
     # annotation is the documented way to force an exact replica count
     # regardless of triggers/cooldown; not all models have this scaler
-    # (always-on models like mocklm don't), so 404s are expected.
+    # (always-on models like mocklm/qwen25-cpu don't), so 404s are expected.
     try:
         if min_replicas == 0:
             custom_api.patch_namespaced_custom_object(
