@@ -27,3 +27,39 @@ data:
       joint_command_topic: "/joint_commands"
       set_sim_state_service: "/isaacsim/SetSimulationState"
       step_simulation_service: "/isaacsim/StepSimulation"
+
+    policy:
+      type: "openpi"
+      endpoint: "ws://dreamzero-predictor.physical-ai-models.svc.cluster.local/v1/realtime/robot/openpi"
+      model_name: "dreamzero"
+      embodiment:
+        joint_names:
+          - panda_joint1
+          - panda_joint2
+          - panda_joint3
+          - panda_joint4
+          - panda_joint5
+          - panda_joint6
+          - panda_joint7
+        training_order:
+          - panda_joint1
+          - panda_joint2
+          - panda_joint3
+          - panda_joint4
+          - panda_joint5
+          - panda_joint6
+          - panda_joint7
+        joint_limits:
+          panda_joint1: [-2.8973, 2.8973]
+          panda_joint2: [-1.7628, 1.7628]
+          panda_joint3: [-2.8973, 2.8973]
+          panda_joint4: [-3.0718, -0.0698]
+          panda_joint5: [-2.8973, 2.8973]
+          panda_joint6: [-0.0175, 3.7525]
+          panda_joint7: [-2.8973, 2.8973]
+        gripper_joint: "panda_finger_joint1"
+        gripper_limits: [0.0, 0.04]
+        camera_mapping:
+          wrist: "observation/wrist_image_left"
+          exterior_1: "observation/exterior_image_1_left"
+        image_size: [224, 224]
