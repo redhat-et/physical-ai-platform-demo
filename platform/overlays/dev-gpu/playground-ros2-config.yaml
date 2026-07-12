@@ -62,4 +62,5 @@ data:
         camera_mapping:
           wrist: "observation/wrist_image_left"
           exterior_1: "observation/exterior_image_1_left"
-        image_size: [224, 224]
+          exterior_2: "observation/exterior_image_2_left"
+        image_size: [180, 320]
