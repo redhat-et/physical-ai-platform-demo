@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from platform_agent import media_store
 from platform_agent.agent import build_agent
 from platform_agent.config import settings
-from platform_agent.tools.models import get_model_readiness
+from platform_agent.tools.models import get_model_readiness, resume_scaling
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ async def start_model():
     """Fire a lightweight MaaS request to trigger KEDA's scale-from-zero via
     the HTTP interceptor. Doesn't wait for readiness — the UI polls
     /api/model/status separately for that."""
+    resume_scaling(settings.llm_model)
     url = f"{settings.maas_proxy_url}/physical-ai-models/{settings.llm_model}/v1/models"
     try:
         async with httpx.AsyncClient(verify=False, timeout=5.0) as http_client:

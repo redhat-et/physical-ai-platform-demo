@@ -170,6 +170,28 @@ def get_model_readiness(model_name: str) -> dict:
     return {"state": "starting", "detail": f"Model is starting up (pod phase: {phases})."}
 
 
+def resume_scaling(model_name: str) -> None:
+    """Clear a KEDA paused-replicas annotation left over from a previous
+    scale_model(..., 0) shutdown, so HTTP traffic can trigger scale-from-zero
+    again. Without this, a paused ScaledObject ignores incoming requests and
+    stays pinned at 0 forever. Safe to call on models without an
+    HTTPScaledObject (404s ignored).
+    """
+    custom_api, _ = _get_k8s_client()
+    scaler_name = f"{model_name}-http-scaler"
+    try:
+        custom_api.patch_namespaced_custom_object(
+            group="keda.sh",
+            version="v1alpha1",
+            namespace=settings.models_namespace,
+            plural="scaledobjects",
+            name=scaler_name,
+            body={"metadata": {"annotations": {"autoscaling.keda.sh/paused-replicas": None}}},
+        )
+    except client.exceptions.ApiException:
+        pass
+
+
 @tool
 def scale_model(model_name: str, min_replicas: int) -> str:
     """Scale a model by setting its minReplicas. Use 1 to bring a model up
