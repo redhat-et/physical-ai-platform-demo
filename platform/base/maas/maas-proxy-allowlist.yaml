@@ -18,6 +18,7 @@ data:
       dreamzero        keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       qwen3-omni       keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       qwen25-cpu       keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
+      qwen25-gpu       keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       default          "";
     }
 
@@ -26,5 +27,6 @@ data:
       dreamzero        dreamzero-predictor.physical-ai-models.svc.cluster.local;
       qwen3-omni       qwen3-omni-predictor.physical-ai-models.svc.cluster.local;
       qwen25-cpu       qwen25-cpu-predictor.physical-ai-models.svc.cluster.local;
+      qwen25-gpu       qwen25-gpu-predictor.physical-ai-models.svc.cluster.local;
       default          $http_host;
     }

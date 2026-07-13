@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: qwen25-gpu-http-scaler
+  namespace: physical-ai-models
+spec:
+  hosts:
+  - qwen25-gpu-predictor.physical-ai-models.svc.cluster.local
+  targetPendingRequests: 1
+  scaleTargetRef:
+    name: qwen25-gpu-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: qwen25-gpu-predictor
+    port: 80
+  replicas:
+    min: 0
+    max: 1
+  scaledownPeriod: 3600
