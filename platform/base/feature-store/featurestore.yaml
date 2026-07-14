@@ -1,0 +1,41 @@
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: feature-store
+  namespace: physical-ai
+spec:
+  services:
+    onlineStore:
+      persistence:
+        file:
+          pvc:
+            create:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+            mountPath: /data/online
+    offlineStore:
+      persistence:
+        file:
+          pvc:
+            create:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+            mountPath: /data/offline
+    registry:
+      local:
+        persistence:
+          file:
+            pvc:
+              create:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 5Gi
+              mountPath: /data/registry

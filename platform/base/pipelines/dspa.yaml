@@ -1,0 +1,17 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: dspa
+  namespace: physical-ai
+spec:
+  apiServer:
+    deploy: true
+    enableSamplePipeline: false
+  database:
+    mariaDB:
+      deploy: true
+      pvcSize: 10Gi
+  objectStorage:
+    minio:
+      deploy: true
+      pvcSize: 20Gi
