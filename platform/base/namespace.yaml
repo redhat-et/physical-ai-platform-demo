@@ -4,6 +4,7 @@ metadata:
   name: physical-ai
   labels:
     opendatahub.io/dashboard: "true"
+    opendatahub.io/feast: "true"
 ---
 apiVersion: v1
 kind: Namespace
