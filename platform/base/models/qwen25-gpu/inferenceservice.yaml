@@ -14,6 +14,8 @@ metadata:
 spec:
   predictor:
     minReplicas: 0
+    deploymentStrategy:
+      type: Recreate
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
     volumes:
