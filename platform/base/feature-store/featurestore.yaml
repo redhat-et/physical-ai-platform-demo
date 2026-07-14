@@ -3,6 +3,8 @@ kind: FeatureStore
 metadata:
   name: feature-store
   namespace: physical-ai
+  labels:
+    feature-store-ui: enabled
 spec:
   feastProject: physical_ai
   services:
@@ -30,6 +32,8 @@ spec:
             mountPath: /data/offline
     registry:
       local:
+        server:
+          restAPI: true
         persistence:
           file:
             pvc:
