@@ -4,7 +4,7 @@ metadata:
   name: feature-store
   namespace: physical-ai
 spec:
-  feastProject: physical-ai
+  feastProject: physical_ai
   services:
     onlineStore:
       persistence:
