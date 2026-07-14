@@ -101,6 +101,10 @@ def _trim_history(messages: list[dict]) -> list[dict]:
 async def _stream_chat(messages: list[dict]):
     response_text = ""
     tools_called = []
+    # Full detail (name + args the LLM actually decided on, plus the raw tool
+    # result) for callers that need to verify more than just "a tool with
+    # this name ran somewhere" -- e.g. tests asserting on tool arguments.
+    tool_calls_detail = []
     try:
         async for chunk in agent.astream(
             {"messages": messages}, stream_mode="updates"
@@ -111,12 +115,17 @@ async def _stream_chat(messages: list[dict]):
                         name = getattr(tm, "name", "tool")
                         tools_called.append(name)
                         yield f"data: {json.dumps({'status': f'Calling {name}...'})}\n\n"
+                        content = getattr(tm, "content", "")
                         logger.info(
                             "tool result: name=%s status=%s content=%r",
                             name,
                             getattr(tm, "status", "unknown"),
-                            str(getattr(tm, "content", ""))[:300],
+                            str(content)[:300],
                         )
+                        for call in reversed(tool_calls_detail):
+                            if call["name"] == name and call.get("result") is None:
+                                call["result"] = content if isinstance(content, str) else str(content)
+                                break
                         artifact = getattr(tm, "artifact", None)
                         if isinstance(artifact, dict) and artifact.get("media_id"):
                             media = {
@@ -132,6 +141,10 @@ async def _stream_chat(messages: list[dict]):
                                 "agent requested tool calls: %s",
                                 [(tc.get("name"), tc.get("args")) for tc in tool_calls],
                             )
+                            for tc in tool_calls:
+                                tool_calls_detail.append(
+                                    {"name": tc.get("name"), "args": tc.get("args"), "result": None}
+                                )
                         content = getattr(msg, "content", "")
                         if content and isinstance(content, str):
                             if not tool_calls:
@@ -139,7 +152,7 @@ async def _stream_chat(messages: list[dict]):
     except Exception as e:
         response_text = f"Agent error: {e}"
 
-    yield f"data: {json.dumps({'response': response_text or 'No response.', 'tools_called': tools_called})}\n\n"
+    yield f"data: {json.dumps({'response': response_text or 'No response.', 'tools_called': tools_called, 'tool_calls': tool_calls_detail})}\n\n"
     yield "data: [DONE]\n\n"
 
 
