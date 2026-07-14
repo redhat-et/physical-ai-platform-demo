@@ -5,9 +5,11 @@ resources:
   - namespace.yaml
   - dsc-patch.yaml
   - dashboard/
+  - feature-store/
   - maas/
   - mlflow/
   - models/
   - model-catalog/
+  - pipelines/
   - robotics-playground/
   - robotics-playground-backend/
