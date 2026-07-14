@@ -12,8 +12,6 @@ spec:
     prometheus.kserve.io/port: "8000"
   containers:
   - name: kserve-container
-    # TODO: Build from github.com/Physical-Intelligence/openpi using
-    # scripts/docker/serve_policy.Dockerfile and push to quay.io/redhat-et
     image: quay.io/redhat-et/openpi-server:latest
     ports:
     - containerPort: 8000

@@ -1,0 +1,41 @@
+# OpenPI policy server for KServe/OpenShift deployment.
+# Serves pi0.5 and other OpenPI-compatible policies via WebSocket.
+#
+# Build context: this directory (features/openpi-server/)
+# The build clones the openpi repo and installs from source.
+
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+
+COPY --from=ghcr.io/astral-sh/uv:0.5.1 /uv /uvx /bin/
+
+# System dependencies (git-lfs needed by LeRobot, build tools for native extensions)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git git-lfs linux-headers-generic build-essential clang ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Clone the openpi repo at a pinned commit for reproducibility
+ARG OPENPI_REF=main
+RUN git clone --depth 1 --branch ${OPENPI_REF} https://github.com/Physical-Intelligence/openpi.git . && \
+    git lfs install
+
+# Create venv outside project dir, install dependencies
+ENV UV_LINK_MODE=copy
+ENV UV_PROJECT_ENVIRONMENT=/.venv
+RUN uv venv --python 3.11.9 $UV_PROJECT_ENVIRONMENT
+RUN GIT_LFS_SKIP_SMUDGE=1 uv sync --frozen --no-install-project --no-dev
+
+# Patch transformers with openpi's custom replacements
+RUN /.venv/bin/python -c "import transformers; print(transformers.__file__)" | \
+    xargs dirname | xargs -I{} cp -r src/openpi/models_pytorch/transformers_replace/* {}
+
+# Install the project itself
+RUN uv sync --frozen --no-dev
+
+EXPOSE 8000
+
+# SERVER_ARGS is set by the ServingRuntime command/args
+ENV SERVER_ARGS="policy:checkpoint --policy.config=pi05_droid --policy.dir=/mnt/models"
+CMD /bin/bash -c "uv run scripts/serve_policy.py $SERVER_ARGS"
