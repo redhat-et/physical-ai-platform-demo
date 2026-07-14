@@ -1,0 +1,32 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: pi05
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    serving.kserve.io/autoscalerClass: external
+    sidecar.istio.io/inject: "false"
+    physical-ai.io/output-kind: unsupported
+spec:
+  predictor:
+    minReplicas: 0
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-L40S
+    model:
+      modelFormat:
+        name: pytorch
+      runtime: openpi-runtime
+      storageUri: pvc://pi05-model-cache
+      resources:
+        requests:
+          cpu: "2"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 48Gi
+          nvidia.com/gpu: "1"

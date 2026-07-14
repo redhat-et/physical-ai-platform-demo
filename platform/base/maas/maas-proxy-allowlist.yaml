@@ -16,6 +16,7 @@ data:
       mocklm-eliza     mocklm-eliza-predictor.physical-ai-models.svc.cluster.local:80;
       cosmos3-nano     keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       dreamzero        keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
+      pi05             keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       qwen3-omni       keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       qwen25-cpu       keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080;
       default          "";
@@ -24,6 +25,7 @@ data:
     map $model $backend_host {
       cosmos3-nano     cosmos3-nano-predictor.physical-ai-models.svc.cluster.local;
       dreamzero        dreamzero-predictor.physical-ai-models.svc.cluster.local;
+      pi05             pi05-predictor.physical-ai-models.svc.cluster.local;
       qwen3-omni       qwen3-omni-predictor.physical-ai-models.svc.cluster.local;
       qwen25-cpu       qwen25-cpu-predictor.physical-ai-models.svc.cluster.local;
       default          $http_host;

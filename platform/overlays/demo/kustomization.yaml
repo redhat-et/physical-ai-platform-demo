@@ -6,6 +6,7 @@ resources:
   - ../../base/isaac-sim/
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
+  - ../../base/models/pi05/
 
 patches:
   - path: playground-ros2-config.yaml
