@@ -1,7 +1,7 @@
 [project]
 name = "platform-agent"
 version = "0.1.0"
-description = "Physical AI Platform Agent — LangChain agent with read-only cluster tools"
+description = "Physical AI Platform Agent — LangChain agent with cluster operations tools"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -11,6 +11,7 @@ dependencies = [
     "kubernetes>=31.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
+    "huggingface_hub>=0.27",
 ]
 
 [project.optional-dependencies]
