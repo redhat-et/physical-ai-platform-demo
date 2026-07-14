@@ -1,0 +1,45 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-qwen25-gpu-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: docker.io/vllm/vllm-openai:v0.24.0
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      vllm serve /mnt/models \
+        --port=8080 \
+        --served-model-name={{.Name}} \
+        --trust-remote-code \
+        --enable-auto-tool-choice \
+        --tool-call-parser hermes \
+        --max-model-len 8192
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    resources:
+      requests:
+        cpu: "4"
+        memory: 32Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "8"
+        memory: 48Gi
+        nvidia.com/gpu: "1"
+  supportedModelFormats:
+  - name: vllm
+    autoSelect: true
