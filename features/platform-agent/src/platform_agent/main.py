@@ -117,13 +117,21 @@ async def _stream_chat(messages: list[dict]):
                         yield f"data: {json.dumps({'status': f'Calling {name}...'})}\n\n"
                         content = getattr(tm, "content", "")
                         logger.info(
-                            "tool result: name=%s status=%s content=%r",
+                            "tool result: name=%s status=%s",
                             name,
                             getattr(tm, "status", "unknown"),
+                        )
+                        # Raw tool output can be pod logs, model responses, or
+                        # generated manifests -- arbitrary content that may be
+                        # sensitive, so it's DEBUG-only, not INFO.
+                        logger.debug(
+                            "tool result content: name=%s content=%r",
+                            name,
                             str(content)[:300],
                         )
-                        for call in reversed(tool_calls_detail):
-                            if call["name"] == name and call.get("result") is None:
+                        tool_call_id = getattr(tm, "tool_call_id", None)
+                        for call in tool_calls_detail:
+                            if call.get("tool_call_id") == tool_call_id:
                                 call["result"] = content if isinstance(content, str) else str(content)
                                 break
                         artifact = getattr(tm, "artifact", None)
@@ -139,17 +147,29 @@ async def _stream_chat(messages: list[dict]):
                         if tool_calls:
                             logger.info(
                                 "agent requested tool calls: %s",
+                                [tc.get("name") for tc in tool_calls],
+                            )
+                            # Args can contain arbitrary user-submitted text
+                            # (e.g. call_model's prompt) -- DEBUG-only.
+                            logger.debug(
+                                "agent tool call args: %s",
                                 [(tc.get("name"), tc.get("args")) for tc in tool_calls],
                             )
                             for tc in tool_calls:
                                 tool_calls_detail.append(
-                                    {"name": tc.get("name"), "args": tc.get("args"), "result": None}
+                                    {
+                                        "name": tc.get("name"),
+                                        "args": tc.get("args"),
+                                        "result": None,
+                                        "tool_call_id": tc.get("id"),
+                                    }
                                 )
                         content = getattr(msg, "content", "")
                         if content and isinstance(content, str):
                             if not tool_calls:
                                 response_text = content
     except Exception as e:
+        logger.exception("agent stream failed")
         response_text = f"Agent error: {e}"
 
     yield f"data: {json.dumps({'response': response_text or 'No response.', 'tools_called': tools_called, 'tool_calls': tool_calls_detail})}\n\n"

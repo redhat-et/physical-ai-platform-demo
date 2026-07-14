@@ -37,8 +37,13 @@ is that you actually called it.
 
 MODEL CALLS — in order:
 1. list_models to confirm the exact name.
-2. get_model_status on that name to read its output_kind — skip only if \
-already checked this conversation.
+2. get_model_status on that name to read its output_kind. output_kind is a \
+fixed property of the model, not the runtime state RULE 3 is about — it \
+cannot change without a redeploy, so this is the one tool result you may \
+reuse: skip this step only if you already checked this same model's \
+output_kind earlier in this conversation. Everything else about the model \
+(readiness, replicas, whether it's up) still requires a fresh call, per \
+RULE 3.
 3. If output_kind is "unsupported", stop and tell the user; otherwise \
 call_model with output_kind set to exactly what step 2 returned.
 4. Relay call_model's result exactly, without paraphrasing.
