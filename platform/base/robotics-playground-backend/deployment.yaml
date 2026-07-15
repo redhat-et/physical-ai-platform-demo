@@ -23,9 +23,6 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
-            - name: rerun-web
-              containerPort: 9090
-              protocol: TCP
             - name: rerun-grpc
               containerPort: 9876
               protocol: TCP
@@ -35,7 +32,8 @@ spec:
             - name: WS_EXTERNAL_URL
               value: "wss://robotics-playground-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
             - name: RERUN_VIEWER_URL
-              value: "https://robotics-playground-rerun-web-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+              # yamllint disable-line rule:line-length
+              value: "https://robotics-playground-rerun-web-redhat-ods-applications.apps.emerg.pcbk.p1.openshiftapps.com"
             - name: RERUN_GRPC_URL
               value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
           volumeMounts:

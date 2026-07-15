@@ -2,13 +2,14 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: robotics-playground-rerun-web
-  namespace: physical-ai
+  namespace: redhat-ods-applications
 spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
   to:
     kind: Service
-    name: robotics-playground
+    name: robotics-playground-ui
   port:
-    targetPort: rerun-web
+    targetPort: http-mf
+  path: /rerun

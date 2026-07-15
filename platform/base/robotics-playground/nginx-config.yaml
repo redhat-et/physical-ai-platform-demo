@@ -38,6 +38,13 @@ data:
                 proxy_set_header Host $host;
             }
 
+            location /rerun/ {
+                expires 7d;
+                add_header Cache-Control "public, immutable";
+                gzip on;
+                gzip_types application/javascript application/wasm;
+            }
+
             location / {
                 try_files $uri $uri/ /index.html;
             }
