@@ -40,6 +40,7 @@ data:
             }
 
             location /rerun/ {
+                try_files $uri $uri.js =404;
                 add_header Cache-Control "no-cache";
                 gzip on;
                 gzip_types application/javascript application/wasm;
