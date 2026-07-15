@@ -147,3 +147,41 @@ models:
   - robotics
   artifacts:
   - uri: https://huggingface.co/GEAR-Dreams/DreamZero-DROID
+- name: lerobot/pi05_base
+  description: >-
+    Physical Intelligence pi0.5, a 4B-parameter Vision-Language-Action (VLA)
+    model that achieves 5-10 Hz inference on a single L40S GPU. Predicts
+    robot action trajectories from visual observations using the OpenPI
+    serving framework.
+  provider: Physical Intelligence
+  logo: *logo
+  readme: |-
+    # pi0.5
+
+    pi0.5 is a 4B-parameter Vision-Language-Action (VLA) model from
+    Physical Intelligence. It predicts robot action trajectories from
+    visual observations, achieving 5-10 Hz inference on a single
+    NVIDIA L40S GPU.
+
+    ## Intended Use
+
+    Robot manipulation policy for predicting action trajectories from visual observations. Supports multiple embodiments via the OpenPI configuration system.
+
+    ## Architecture
+
+    VLA model served via the native OpenPI policy server (not vLLM-Omni). Uses the `pi05_droid` configuration for the DROID embodiment.
+
+    ## Limitations
+
+    Requires GPU resources (NVIDIA L40S). Not served through vLLM-Omni — uses a custom OpenPI ServingRuntime.
+
+    ## Links
+
+    - [HuggingFace](https://huggingface.co/lerobot/pi05_base)
+    - [OpenPI](https://github.com/Physical-Intelligence/openpi)
+  license: gemma
+  licenseLink: https://ai.google.dev/gemma/terms
+  tasks:
+  - robotics
+  artifacts:
+  - uri: https://huggingface.co/lerobot/pi05_base
