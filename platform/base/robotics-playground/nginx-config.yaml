@@ -39,8 +39,7 @@ data:
             }
 
             location /rerun/ {
-                expires 7d;
-                add_header Cache-Control "public, immutable";
+                add_header Cache-Control "no-cache";
                 gzip on;
                 gzip_types application/javascript application/wasm;
             }
