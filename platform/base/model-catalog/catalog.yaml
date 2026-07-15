@@ -81,7 +81,7 @@ models:
   tasks:
   - image-to-text
   artifacts: []
-- name: nvidia/Cosmos3-Nano
+- name: Cosmos3-Nano
   description: >-
     NVIDIA Cosmos3 Nano world foundation model for physical AI.
     Generates video from text or image prompts, enabling world simulation
@@ -114,7 +114,7 @@ models:
   - video-generation
   artifacts:
   - uri: https://huggingface.co/nvidia/Cosmos3-Nano
-- name: GEAR-Dreams/DreamZero-DROID
+- name: DreamZero-DROID
   description: >-
     DreamZero robotic action prediction model trained on the DROID dataset.
     Predicts robot action trajectories from observation sequences for
@@ -147,7 +147,7 @@ models:
   - robotics
   artifacts:
   - uri: https://huggingface.co/GEAR-Dreams/DreamZero-DROID
-- name: lerobot/pi05_base
+- name: π0.5
   description: >-
     Physical Intelligence π0.5, a 4B-parameter Vision-Language-Action (VLA)
     model that achieves 5-10 Hz inference on a single L40S GPU. Predicts
