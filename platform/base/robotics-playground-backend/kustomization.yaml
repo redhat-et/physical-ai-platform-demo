@@ -2,15 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - deployment.yaml
-  - service.yaml
+  # yamllint disable-next-line rule:line-length
+  - https://github.com/redhat-et/robotics-playground//deploy/kustomize/robotics-playground?ref=main
   - route.yaml
   - route-rerun-grpc.yaml
-  - config.yaml
 
-configMapGenerator:
-  - name: zenoh-backend-config
-    files:
-      - config.json5=zenoh-backend-config.json5
-    options:
-      disableNameSuffixHash: true
+namespace: physical-ai
+
+patches:
+  - path: patches/deployment-env.yaml
