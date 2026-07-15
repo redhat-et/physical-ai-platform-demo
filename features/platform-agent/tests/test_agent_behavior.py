@@ -166,6 +166,211 @@ def test_get_pod_logs_called_for_log_request(chat):
     assert calls[0]["result"], calls[0]
 
 
+def test_search_datasets_called_for_find_dataset_query(chat):
+    """A request to find a dataset for a non-robot-policy task should call
+    search_datasets, not fabricate a plausible-sounding dataset name/id.
+    Deliberately NOT robot-policy-flavored (e.g. not "robot manipulation")
+    -- that phrasing now correctly triggers the smarter
+    get_finetune_requirements/search_compatible_lerobot_datasets path
+    instead, which is the improved, intended behavior, not a failure."""
+    result = chat("Find me a dataset for training a text sentiment classification model")
+    assert "search_datasets" in result["tools_called"], result
+
+
+def test_search_compatible_lerobot_datasets_used_for_robot_policy(chat):
+    """Regression: asked to find a dataset for fine-tuning pi05, the agent
+    called plain search_datasets and dumped an unvetted list (including
+    wrong-robot-embodiment and wrong-LeRobot-version results) for the user
+    to sort through one at a time. For a named robot-policy model,
+    search_compatible_lerobot_datasets (which checks each candidate's real
+    metadata before returning it) should be used instead."""
+    result = chat("Find me a dataset to fine-tune the pi05 model")
+    assert "search_compatible_lerobot_datasets" in result["tools_called"], result
+
+
+def test_get_finetune_requirements_called_before_search(chat):
+    """Regression: asked to find a dataset for pi05, the agent searched for
+    the model's own name ('pi05') and got back datasets for unrelated
+    embodiments (LIBERO sim, humanoids, custom rigs) instead of DROID data
+    this recipe actually needs. get_finetune_requirements must be called
+    before search_compatible_lerobot_datasets so the search is grounded in
+    the recipe's real robot_type/query hint, not a guess."""
+    result = chat("Find me a dataset to fine-tune the pi05 model")
+    assert "get_finetune_requirements" in result["tools_called"], result
+    if "search_compatible_lerobot_datasets" in result["tools_called"]:
+        assert (
+            result["tools_called"].index("get_finetune_requirements")
+            < result["tools_called"].index("search_compatible_lerobot_datasets")
+        ), f"search happened before checking requirements: {result['tools_called']}"
+
+
+def test_validate_lerobot_dataset_grounded_before_asserting_incompatible(chat):
+    """Regression: asked to validate 'aractingi/droid_100_test' (a real,
+    confirmed-compatible dataset) against pi05, the agent called
+    validate_lerobot_dataset with fabricated expected_feature_keys
+    ('observation.images.wrist_image_left'/'wrist_image_right' -- wrong
+    prefix, and DROID doesn't even have a right wrist camera) and reported
+    a confident but false INCOMPATIBLE verdict. get_finetune_requirements
+    must be called first so any expected_* criteria passed are grounded in
+    the real recipe, not invented."""
+    result = chat("Can you validate aractingi/droid_100_test for fine-tuning pi05?")
+    assert "validate_lerobot_dataset" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "validate_lerobot_dataset"]
+    assert calls, result
+    args = calls[0]["args"] or {}
+    if args.get("expected_feature_keys") or args.get("expected_action_dim"):
+        assert "get_finetune_requirements" in result["tools_called"], (
+            f"validate_lerobot_dataset was called with expected_* criteria "
+            f"but get_finetune_requirements (the only grounded source for "
+            f"them) was never called -- criteria are likely fabricated: {result}"
+        )
+
+
+def test_validate_lerobot_dataset_uses_camera_counts_not_invented_keys(chat):
+    """Regression: asked to check camera compatibility for pi05, the agent
+    invented an exact feature key ('observation.images.wrist_image_right')
+    that has never existed in any real DROID dataset checked on this
+    platform -- DROID has exactly one wrist camera, never two. Camera
+    compatibility should be grounded, not a guessed expected_feature_keys
+    string -- either via model_name (preferred: looks the counts up
+    directly, no transcription step to get wrong) or, failing that, the
+    manually-passed count-based expected_exterior_cameras/
+    expected_wrist_cameras args."""
+    result = chat(
+        "Is lerobot/droid_100 compatible with pi05's expected camera setup?"
+    )
+    assert "validate_lerobot_dataset" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "validate_lerobot_dataset"]
+    assert calls, result
+    args = calls[-1]["args"] or {}
+    invented_keys = [
+        k for k in (args.get("expected_feature_keys") or [])
+        if "wrist_image_right" in k or "wrist_right" in k
+    ]
+    assert not invented_keys, (
+        f"validate_lerobot_dataset was called with an invented camera key "
+        f"that has never existed in any real DROID dataset: {invented_keys}. "
+        f"Full args: {args}"
+    )
+    grounded = (
+        args.get("model_name")
+        or args.get("expected_exterior_cameras") is not None
+        or args.get("expected_wrist_cameras") is not None
+    )
+    assert grounded, (
+        f"Expected the agent to check camera compatibility via model_name "
+        f"(preferred) or the count-based expected_exterior_cameras/"
+        f"expected_wrist_cameras args, rather than no check at all or a "
+        f"guessed expected_feature_keys: {args}"
+    )
+
+
+def test_search_smaller_dataset_uses_real_size_filter(chat):
+    """Regression: after being shown several large DROID datasets and asked
+    for 'a smaller dataset', the agent claimed two ~95,000-episode datasets
+    were 'relatively small compared to the others' based on download count
+    -- a fabricated size claim (episode/download count don't correlate with
+    actual size; the real sizes were 400+ GB each). Asking for a smaller
+    dataset should trigger a new search_compatible_lerobot_datasets call
+    using max_size_gb, which reports real size, not a re-narration of the
+    same results using download count as a size proxy."""
+    turn1 = chat("Find me a dataset to fine-tune pi05")
+    history = [
+        {"role": "user", "content": "Find me a dataset to fine-tune pi05"},
+        {"role": "assistant", "content": turn1["response"]},
+    ]
+    turn2 = chat("Can you find a smaller one?", history)
+    calls = [c for c in turn2["tool_calls"] if c["name"] == "search_compatible_lerobot_datasets"]
+    assert calls, (
+        f"Expected a new search_compatible_lerobot_datasets call to actually "
+        f"filter by size, not just a re-narrated answer from memory: {turn2}"
+    )
+    assert calls[-1]["args"].get("max_size_gb") is not None, (
+        f"search_compatible_lerobot_datasets was called again but without "
+        f"max_size_gb -- 'smaller' has no real size data behind it "
+        f"otherwise: {calls[-1]}"
+    )
+
+
+def test_get_dataset_info_called_with_exact_repo_id(chat):
+    """A question about a specific dataset should call get_dataset_info with
+    the exact repo id, not guess its size/license/schema."""
+    result = chat("What's the size and license of the squad dataset (repo id 'squad')?")
+    assert "get_dataset_info" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "get_dataset_info"]
+    assert calls, result
+    assert calls[0]["args"].get("dataset_repo_id") == "squad", calls[0]
+
+
+def test_pull_dataset_requires_confirmation_after_info(chat):
+    """DATASETS rule: pull_dataset must never be called in the same turn as
+    get_dataset_info -- the agent must show size/license and wait for
+    explicit user go-ahead before consuming shared-cluster storage on a
+    download. Turn 1 asks to pull directly (info not yet shown this
+    conversation); turn 2 confirms after seeing it."""
+    turn1 = chat("Pull the 'squad' dataset (repo id 'squad') so I can fine-tune with it")
+    assert "get_dataset_info" in turn1["tools_called"], turn1
+    assert "pull_dataset" not in turn1["tools_called"], (
+        f"pull_dataset must not be called before the user has seen size/license "
+        f"and confirmed: {turn1}"
+    )
+
+    history = [
+        {"role": "user", "content": "Pull the 'squad' dataset (repo id 'squad') so I can fine-tune with it"},
+        {"role": "assistant", "content": turn1["response"]},
+    ]
+    turn2 = chat("Yes, go ahead and pull it", history)
+    assert "pull_dataset" in turn2["tools_called"], turn2
+    calls = [c for c in turn2["tool_calls"] if c["name"] == "pull_dataset"]
+    assert calls, turn2
+    assert calls[0]["args"].get("dataset_repo_id") == "squad", calls[0]
+
+
+def test_submit_finetune_run_requires_confirmation(chat):
+    """FINE-TUNING rule: submit_finetune_run must never be called as the
+    first response to a fine-tuning request -- it consumes real GPU-hours
+    on the shared cluster, so the agent must discuss the recipe and wait
+    for explicit user go-ahead first, same carve-out as pull_dataset."""
+    message = (
+        "Fine-tune pi05 using the dataset staged at PVC 'dataset-test-droid-pvc', "
+        "call the experiment 'test-exp-1'"
+    )
+    turn1 = chat(message)
+    assert "submit_finetune_run" not in turn1["tools_called"], (
+        f"submit_finetune_run must not be called before the user has confirmed: {turn1}"
+    )
+
+    history = [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": turn1["response"]},
+    ]
+    turn2 = chat("Yes, go ahead and start it", history)
+    assert "submit_finetune_run" in turn2["tools_called"], turn2
+    calls = [c for c in turn2["tool_calls"] if c["name"] == "submit_finetune_run"]
+    assert calls, turn2
+    args = calls[0]["args"] or {}
+    assert args.get("dataset_pvc_name") == "dataset-test-droid-pvc", calls[0]
+    assert args.get("exp_name") == "test-exp-1", calls[0]
+
+
+def test_get_finetune_run_status_called_for_status_query(chat):
+    """A question about a fine-tuning run's progress should call
+    get_finetune_run_status with the exact exp_name, not guess or reuse a
+    stale answer from an earlier turn (state changes between messages)."""
+    result = chat("What's the status of the 'test-exp-1' fine-tuning run?")
+    assert "get_finetune_run_status" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "get_finetune_run_status"]
+    assert calls, result
+    assert calls[0]["args"].get("exp_name") == "test-exp-1", calls[0]
+
+
+def test_list_staged_datasets_called_for_staged_query(chat):
+    """Asking what's already staged should call list_staged_datasets, not
+    fabricate an answer from memory (state can change between turns)."""
+    result = chat("What datasets are already staged on the cluster?")
+    assert "list_staged_datasets" in result["tools_called"], result
+
+
 def test_estimate_model_footprint_called_with_exact_repo_id(chat):
     """A sizing/hardware question about a specific HF model should call
     estimate_model_footprint with the exact repo id, not guess VRAM numbers
