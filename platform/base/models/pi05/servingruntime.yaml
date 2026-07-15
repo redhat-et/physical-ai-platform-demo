@@ -1,0 +1,42 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: openpi-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: openpi
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8000"
+  containers:
+  - name: kserve-container
+    image: quay.io/redhat-et/openpi-server:latest
+    ports:
+    - containerPort: 8000
+      protocol: TCP
+    command:
+    - uv
+    - run
+    args:
+    - scripts/serve_policy.py
+    - policy:checkpoint
+    - --policy.config=pi05_droid
+    - --policy.dir=/mnt/models
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    resources:
+      requests:
+        cpu: "2"
+        memory: 24Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "4"
+        memory: 48Gi
+        nvidia.com/gpu: "1"
+  supportedModelFormats:
+  - name: pytorch
+    version: "2"
+    autoSelect: true

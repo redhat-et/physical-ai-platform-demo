@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-pi05-model
+  namespace: physical-ai-models
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: downloader
+        image: python:3.11-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Installing huggingface_hub..."
+          pip install -q huggingface_hub
+          echo "Downloading lerobot/pi05_base model..."
+          python3 << 'PYEOF'
+          from huggingface_hub import snapshot_download
+          import os
+          print("Starting model download to /mnt/models...")
+          snapshot_download(
+              repo_id='lerobot/pi05_base',
+              local_dir='/mnt/models',
+          )
+          print("Model download completed successfully!")
+          model_files = os.listdir('/mnt/models')
+          print(f"Downloaded {len(model_files)} files/directories")
+          PYEOF
+          echo "Download job finished successfully"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /mnt/models
+        resources:
+          requests:
+            cpu: "2"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 16Gi
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: pi05-model-cache

@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pi05-openpi-compat
+  namespace: physical-ai-models
+  labels:
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  groups:
+  - name: pi05-openpi-compat
+    interval: 30s
+    rules: []

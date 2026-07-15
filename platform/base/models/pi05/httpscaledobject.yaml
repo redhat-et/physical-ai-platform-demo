@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: pi05-http-scaler
+  namespace: physical-ai-models
+spec:
+  hosts:
+  - pi05-predictor.physical-ai-models.svc.cluster.local
+  targetPendingRequests: 1
+  scaleTargetRef:
+    name: pi05-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: pi05-predictor
+    port: 80
+  replicas:
+    min: 0
+    max: 3
+  scaledownPeriod: 3600
