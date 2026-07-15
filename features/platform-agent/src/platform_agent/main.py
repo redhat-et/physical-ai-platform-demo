@@ -84,20 +84,6 @@ async def start_model():
     return {"status": "triggered"}
 
 
-MAX_HISTORY_CHARS = 20000
-
-
-def _trim_history(messages: list[dict]) -> list[dict]:
-    total = 0
-    trimmed = []
-    for msg in reversed(messages):
-        total += len(msg.get("content", ""))
-        if total > MAX_HISTORY_CHARS:
-            break
-        trimmed.append(msg)
-    return list(reversed(trimmed))
-
-
 async def _stream_chat(messages: list[dict]):
     response_text = ""
     tools_called = []
@@ -179,7 +165,6 @@ async def _stream_chat(messages: list[dict]):
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     history = [{"role": m.role, "content": m.content} for m in req.history]
-    history = _trim_history(history)
     messages = history + [{"role": "user", "content": req.message}]
 
     return StreamingResponse(

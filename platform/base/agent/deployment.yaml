@@ -34,6 +34,8 @@ spec:
                   name: platform-agent-llm
                   key: api-key
                   optional: true
+            - name: HF_HOME
+              value: /tmp/hf_home
           readinessProbe:
             httpGet:
               path: /api/health
