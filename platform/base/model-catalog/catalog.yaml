@@ -149,16 +149,16 @@ models:
   - uri: https://huggingface.co/GEAR-Dreams/DreamZero-DROID
 - name: lerobot/pi05_base
   description: >-
-    Physical Intelligence pi0.5, a 4B-parameter Vision-Language-Action (VLA)
+    Physical Intelligence π0.5, a 4B-parameter Vision-Language-Action (VLA)
     model that achieves 5-10 Hz inference on a single L40S GPU. Predicts
     robot action trajectories from visual observations using the OpenPI
     serving framework.
   provider: Physical Intelligence
   logo: *logo
   readme: |-
-    # pi0.5
+    # π0.5
 
-    pi0.5 is a 4B-parameter Vision-Language-Action (VLA) model from
+    π0.5 is a 4B-parameter Vision-Language-Action (VLA) model from
     Physical Intelligence. It predicts robot action trajectories from
     visual observations, achieving 5-10 Hz inference on a single
     NVIDIA L40S GPU.
