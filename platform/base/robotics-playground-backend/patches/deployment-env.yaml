@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robotics-playground
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          imagePullPolicy: Always
+          env:
+            - name: PLAYGROUND_CONFIG
+              value: /etc/robotics-playground/config.yaml
+            - name: WS_EXTERNAL_URL
+              # yamllint disable-next-line rule:line-length
+              value: "wss://robotics-playground-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+            - name: RERUN_VIEWER_URL
+              # yamllint disable-next-line rule:line-length
+              value: "https://robotics-playground-rerun-web-redhat-ods-applications.apps.emerg.pcbk.p1.openshiftapps.com/rerun"
+            - name: RERUN_GRPC_URL
+              # yamllint disable-next-line rule:line-length
+              value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
