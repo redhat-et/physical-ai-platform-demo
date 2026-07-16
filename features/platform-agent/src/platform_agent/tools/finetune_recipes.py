@@ -18,6 +18,8 @@ zero conversion via that same serving setup. No custom TrainConfig shim
 needed either -- lerobot-train is a normal CLI.
 """
 
+from platform_agent.tools.datasets import _fetch_lerobot_info
+
 LEROBOT_IMAGE = "huggingface/lerobot-gpu:latest"
 
 DATASET_MOUNT_ROOT = "/mnt/lerobot_home"
@@ -89,6 +91,33 @@ def dataset_mount_path(dataset_repo_id: str) -> str:
     return f"{DATASET_MOUNT_ROOT}/{dataset_repo_id}"
 
 
+# How many trailing episodes to reserve for eval. Previously the eval script
+# computed its own "held_out = last 5 episodes" at runtime while the train
+# script had no episode filter at all -- training used ALL episodes, so
+# eval's "held-out" set had already been seen during training. That made the
+# eval numbers an in-sample fit check, not a real generalization measure.
+NUM_EVAL_EPISODES = 5
+
+
+def split_episodes(total_episodes: int) -> tuple[list[int], list[int]]:
+    """Split a dataset's episodes into a training set and a genuinely
+    held-out eval set. The eval episodes get passed to --dataset.episodes
+    at training time to exclude them, and the exact same list gets passed
+    to the eval script -- one computation, shared by both stages, so they
+    can't drift apart the way the old two-independent-computations version
+    could.
+    """
+    num_eval = min(NUM_EVAL_EPISODES, total_episodes - 1) if total_episodes > 1 else 0
+    if num_eval < 1:
+        raise ValueError(
+            f"Dataset has only {total_episodes} episode(s) -- too few to split into a "
+            f"non-empty train set and a non-empty eval set."
+        )
+    train_episodes = list(range(total_episodes - num_eval))
+    eval_episodes = list(range(total_episodes - num_eval, total_episodes))
+    return train_episodes, eval_episodes
+
+
 def _checkpoint_dir(exp_name: str) -> str:
     """lerobot-train's own convention: {output_dir}/checkpoints/last/pretrained_model
     always points at the most recent checkpoint (a directory containing
@@ -97,7 +126,9 @@ def _checkpoint_dir(exp_name: str) -> str:
     return f"{CHECKPOINT_MOUNT_PATH}/{exp_name}/checkpoints/last/pretrained_model"
 
 
-def _train_script(dataset_repo_id: str, exp_name: str, num_train_steps: int, batch_size: int) -> str:
+def _train_script(
+    dataset_repo_id: str, exp_name: str, num_train_steps: int, batch_size: int, train_episodes: list[int]
+) -> str:
     """Training stage script: runs lerobot-train directly -- a plain CLI, no
     custom Python config-construction shim needed unlike the old openpi-based
     recipe. Uses the MEAN_STD normalization override instead of the
@@ -126,6 +157,12 @@ def _train_script(dataset_repo_id: str, exp_name: str, num_train_steps: int, bat
     camera/state layout correctly over a full 3000-step run (only the first
     ~10 steps were observed directly), and whether train_expert_only fits a
     single 48GB L40S for the full run (only ~25GB used in early steps).
+
+    train_episodes excludes whatever split_episodes reserved for eval, via
+    --dataset.episodes -- confirmed this flag's list-literal CLI syntax
+    against LeRobot's own Makefile/CI examples (--dataset.episodes="[0]").
+    Without this, the eval stage's "held-out" episodes were actually part of
+    the training set the whole time (see split_episodes' docstring).
     """
     return f"""\
 set -e
@@ -134,6 +171,7 @@ export HF_LEROBOT_HOME={DATASET_MOUNT_ROOT}
 lerobot-train \\
     --dataset.repo_id={dataset_repo_id} \\
     --dataset.root={dataset_mount_path(dataset_repo_id)} \\
+    --dataset.episodes="{train_episodes}" \\
     --policy.type=pi05 \\
     --policy.push_to_hub=false \\
     --policy.pretrained_path={PI05_PRETRAINED_PATH} \\
@@ -150,13 +188,20 @@ lerobot-train \\
 """
 
 
-def _evaluate_script(dataset_repo_id: str, exp_name: str) -> str:
+def _evaluate_script(dataset_repo_id: str, exp_name: str, eval_episodes: list[int]) -> str:
     """Offline, self-contained evaluation -- no dependency on
     robotics-playground/Isaac Lab or any external service. Loads the
     fine-tuned checkpoint via LeRobot's own PreTrainedPolicy.from_pretrained
     (no conversion needed -- see module docstring), runs it against a few
     held-out episodes from the staged dataset, and reports action-prediction
     error plus a load/shape smoke test.
+
+    eval_episodes comes from the SAME split_episodes() call that produced
+    _train_script's train_episodes -- confirmed live this actually matters:
+    the previous version independently recomputed "last 5 episodes" here
+    while the train script had no episode filter at all, so these "held-out"
+    episodes had already been seen during training. Passing the identical
+    list computed once in get_recipe is what makes them genuinely unseen.
 
     Confirmed live that a raw dataset sample can't be passed to
     policy.select_action directly -- pi0.5 needs observation.language.tokens/
@@ -192,8 +237,7 @@ preprocessor, postprocessor = make_pre_post_processors(
 )
 
 dataset = LeRobotDataset("{dataset_repo_id}", root="{dataset_mount_path(dataset_repo_id)}")
-num_episodes = dataset.num_episodes
-held_out = list(range(max(0, num_episodes - 5), num_episodes))
+held_out = {eval_episodes}
 print(f"Evaluating against held-out episodes: {{held_out}}")
 
 errors = []
@@ -221,9 +265,21 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
 
     Each stage: name, image, command (list, passed to bash -c), gpu (int
     GPUs requested; 0 means no nodeSelector/GPU resource added).
+
+    Called twice per run (submit_finetune_run for stage 0, then
+    get_finetune_run_status again when advancing to stage 1) -- fetching
+    total_episodes fresh each time rather than caching it is deliberate,
+    since re-deriving the same split both times is what keeps
+    train_episodes/eval_episodes identical across both calls without having
+    to persist the split anywhere.
     """
     if model_name != "pi05":
         raise ValueError(f"No fine-tuning recipe for '{model_name}' -- only 'pi05' is defined so far.")
+
+    info = _fetch_lerobot_info(dataset_repo_id)
+    if isinstance(info, str):
+        raise ValueError(f"Could not resolve recipe for '{dataset_repo_id}': {info}")
+    train_episodes, eval_episodes = split_episodes(info["total_episodes"])
 
     # Temporarily reduced from 3_000 -- at the measured ~5.4s/step pace on a
     # single L40S, 3_000 steps takes ~4.5 hours. 100 steps (~9 minutes) is
@@ -237,12 +293,18 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
             "name": "train",
             "image": LEROBOT_IMAGE,
             "gpu": 1,
-            "command": ["/bin/bash", "-c", _train_script(dataset_repo_id, exp_name, num_train_steps=NUM_TRAIN_STEPS, batch_size=32)],
+            "command": [
+                "/bin/bash",
+                "-c",
+                _train_script(
+                    dataset_repo_id, exp_name, num_train_steps=NUM_TRAIN_STEPS, batch_size=32, train_episodes=train_episodes
+                ),
+            ],
         },
         {
             "name": "evaluate",
             "image": LEROBOT_IMAGE,
             "gpu": 1,
-            "command": ["/bin/bash", "-c", _evaluate_script(dataset_repo_id, exp_name)],
+            "command": ["/bin/bash", "-c", _evaluate_script(dataset_repo_id, exp_name, eval_episodes=eval_episodes)],
         },
     ]
