@@ -30,8 +30,18 @@ data:
 
     policy:
       type: "openpi"
-      endpoint: "ws://dreamzero-predictor.physical-ai-models.svc.cluster.local/v1/realtime/robot/openpi"
-      model_name: "dreamzero"
+      default_model: "dreamzero-v1"
+      models:
+        dreamzero-v1:
+          name: "DreamZero"
+          # yamllint disable-next-line rule:line-length
+          endpoint: "ws://dreamzero-predictor.physical-ai-models.svc.cluster.local/v1/realtime/robot/openpi"
+          action_horizon: 4
+        pi05-v1:
+          name: "pi0.5"
+          # yamllint disable-next-line rule:line-length
+          endpoint: "ws://pi05-predictor.physical-ai-models.svc.cluster.local/"
+          action_horizon: 8
       embodiment:
         joint_names:
           - panda_joint1
@@ -63,4 +73,3 @@ data:
           wrist: "observation/wrist_image_left"
           exterior_1: "observation/exterior_image_1_left"
           exterior_2: "observation/exterior_image_2_left"
-        image_size: [180, 320]
