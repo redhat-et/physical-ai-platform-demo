@@ -3,7 +3,7 @@ from kubernetes import client
 
 from platform_agent.config import settings
 from platform_agent.tools.datasets import DATASET_REPO_LABEL
-from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, DATASET_MOUNT_ROOT, get_recipe, get_requirements
+from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe, get_requirements
 
 FINETUNE_EXP_LABEL = "physical-ai.io/finetune-exp"
 FINETUNE_MODEL_LABEL = "physical-ai.io/finetune-model"
@@ -46,9 +46,8 @@ def _create_stage_job(
         FINETUNE_STAGE_INDEX_LABEL: str(stage_index),
     }
 
-    dataset_mount_path = f"{DATASET_MOUNT_ROOT}/{dataset_repo_id}"
     volume_mounts = [
-        {"name": "dataset", "mountPath": dataset_mount_path, "readOnly": True},
+        {"name": "dataset", "mountPath": dataset_mount_path(dataset_repo_id), "readOnly": True},
         {"name": "checkpoint", "mountPath": CHECKPOINT_MOUNT_PATH},
     ]
     volumes = [
@@ -70,7 +69,13 @@ def _create_stage_job(
                 "name": "stage",
                 "image": stage["image"],
                 "command": stage["command"],
-                "env": [{"name": "HF_HOME", "value": "/tmp/hf_home"}],
+                "env": [
+                    {"name": "HF_HOME", "value": "/tmp/hf_home"},
+                    {
+                        "name": "HF_TOKEN",
+                        "valueFrom": {"secretKeyRef": {"name": "huggingface-token", "key": "HF_TOKEN", "optional": True}},
+                    },
+                ],
                 "volumeMounts": volume_mounts,
                 "resources": resources,
             }
