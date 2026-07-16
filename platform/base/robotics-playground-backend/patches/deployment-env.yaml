@@ -20,3 +20,5 @@ spec:
             - name: RERUN_GRPC_URL
               # yamllint disable-next-line rule:line-length
               value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+            - name: RERUN_ASSETS_URL
+              value: "https://app.rerun.io/version/0.33.1/"
