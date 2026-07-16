@@ -9,6 +9,7 @@ data:
   AGENT_MODELS_NAMESPACE: "physical-ai-models"
   AGENT_INFRA_NAMESPACE: "physical-ai"
   AGENT_MAAS_NAMESPACE: "models-as-a-service"
+  AGENT_DATASETS_NAMESPACE: "physical-ai"
   AGENT_LLM_BASE_URL: "https://maas-proxy.physical-ai-models.svc.cluster.local/physical-ai-models/qwen25-gpu/v1"
   AGENT_LLM_MODEL: "qwen25-gpu"
   AGENT_LLM_API_KEY: "unused"

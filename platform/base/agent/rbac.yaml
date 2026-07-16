@@ -46,37 +46,6 @@ subjects:
     name: platform-agent
     namespace: physical-ai
 ---
-# Dataset staging: PVC + Job create/manage for fine-tuning dataset pulls
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: platform-agent
-  namespace: physical-ai-datasets
-rules:
-  - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "create"]
-  - apiGroups: [""]
-    resources: ["pods", "pods/log"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: platform-agent
-  namespace: physical-ai-datasets
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: platform-agent
-subjects:
-  - kind: ServiceAccount
-    name: platform-agent
-    namespace: physical-ai
----
 # Read access to MaaS subscriptions and auth policies
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -102,7 +71,7 @@ subjects:
     name: platform-agent
     namespace: physical-ai
 ---
-# Read access to infra namespace + Tekton pipeline execution
+# Read access to infra namespace + Tekton pipeline execution + fine-tuning dataset/checkpoint PVC and Job management
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -112,6 +81,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "services", "events"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create"]
   - apiGroups: ["tekton.dev"]
     resources: ["pipelines", "tasks"]
     verbs: ["get", "list", "watch"]
@@ -128,6 +103,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: platform-agent
+subjects:
+  - kind: ServiceAccount
+    name: platform-agent
+    namespace: physical-ai
+---
+# DSPA API access for triggering/polling fine-tuning pipeline runs (Role is operator-managed, not defined in this repo)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-agent-dspa-access
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ds-pipeline-user-access-dspa
 subjects:
   - kind: ServiceAccount
     name: platform-agent

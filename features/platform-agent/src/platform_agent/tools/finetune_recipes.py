@@ -75,9 +75,10 @@ def get_requirements(model_name: str) -> dict:
 
 def dataset_mount_path(dataset_repo_id: str) -> str:
     """Where a dataset PVC is mounted in every finetune stage's pod -- single
-    source of truth shared between the actual volumeMount (_create_stage_job
-    in finetune.py) and the training/eval scripts below that need to tell
-    lerobot-train/LeRobotDataset the same path via --dataset.root / root=.
+    source of truth shared between the actual volume mount (kfp.kubernetes
+    mount_pvc call in finetune_pipeline.py's submit_pipeline_run) and the
+    training/eval scripts below that need to tell lerobot-train/
+    LeRobotDataset the same path via --dataset.root / root=.
 
     That explicit root is not optional: LeRobotDatasetMetadata only trusts a
     local path when it's passed as `root` -- otherwise it checks for
@@ -150,8 +151,8 @@ def _train_script(
     re-download over the network, failing on the read-only mount);
     --policy.push_to_hub=false (cfg.validate() otherwise demands a
     --policy.repo_id to push the checkpoint to the Hub); and HF_TOKEN in the
-    pod env (finetune.py's _create_stage_job -- pi0.5's tokenizer processor
-    loads config from PaliGemma's gated HF repo and 401s without it).
+    pod env (finetune_pipeline.py's submit_pipeline_run -- pi0.5's tokenizer
+    processor loads config from PaliGemma's gated HF repo and 401s without it).
 
     STILL NEEDS VERIFICATION: whether lerobot-train handles DROID's
     camera/state layout correctly over a full 3000-step run (only the first
