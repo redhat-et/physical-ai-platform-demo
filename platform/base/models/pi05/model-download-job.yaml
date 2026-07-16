@@ -18,7 +18,8 @@ spec:
           set -e
           echo "Installing huggingface_hub..."
           pip install -q huggingface_hub
-          echo "Downloading lerobot/pi05_base model..."
+
+          echo "Downloading lerobot/pi05_base model weights..."
           python3 << 'PYEOF'
           from huggingface_hub import snapshot_download
           import os
@@ -31,6 +32,14 @@ spec:
           model_files = os.listdir('/mnt/models')
           print(f"Downloaded {len(model_files)} files/directories")
           PYEOF
+
+          echo "Downloading norm stats from GCS..."
+          mkdir -p /mnt/models/assets/droid
+          # yamllint disable-next-line rule:line-length
+          curl -sfL "https://storage.googleapis.com/openpi-assets/checkpoints/pi05_droid/assets/droid/norm_stats.json" \
+            -o /mnt/models/assets/droid/norm_stats.json
+          echo "Norm stats downloaded successfully"
+
           echo "Download job finished successfully"
         volumeMounts:
         - name: model-storage
