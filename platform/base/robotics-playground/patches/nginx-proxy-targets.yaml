@@ -44,8 +44,6 @@ data:
                 try_files $uri $uri/ $uri.js =404;
                 add_header Cache-Control "no-cache";
                 gzip_static on;
-                gzip on;
-                gzip_types application/javascript application/wasm;
             }
 
             location / {
