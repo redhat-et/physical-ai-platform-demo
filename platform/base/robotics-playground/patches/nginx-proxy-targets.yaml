@@ -17,6 +17,7 @@ data:
         default_type application/octet-stream;
         access_log /dev/stdout;
         types_hash_max_size 4096;
+        sendfile on;
 
         server {
             listen 8080;
