@@ -34,10 +34,16 @@ spec:
           PYEOF
 
           echo "Downloading norm stats from GCS..."
-          mkdir -p /mnt/models/assets/droid
+          python3 << 'DLEOF'
+          import os, urllib.request
+          os.makedirs("/mnt/models/assets/droid", exist_ok=True)
           # yamllint disable-next-line rule:line-length
-          curl -sfL "https://storage.googleapis.com/openpi-assets/checkpoints/pi05_droid/assets/droid/norm_stats.json" \
-            -o /mnt/models/assets/droid/norm_stats.json
+          url = "https://storage.googleapis.com/openpi-assets/checkpoints/pi05_droid/assets/droid/norm_stats.json"
+          dest = "/mnt/models/assets/droid/norm_stats.json"
+          urllib.request.urlretrieve(url, dest)
+          size = os.path.getsize(dest)
+          print(f"Downloaded norm_stats.json ({size} bytes)")
+          DLEOF
           echo "Norm stats downloaded successfully"
 
           echo "Download job finished successfully"
