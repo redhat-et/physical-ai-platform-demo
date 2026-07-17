@@ -34,7 +34,7 @@ DSPA_HOST = "https://ds-pipeline-dspa.physical-ai.svc.cluster.local:8443"
 DSPA_NAMESPACE = "physical-ai"
 SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-DASHBOARD_BASE_URL = "https://rh-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+DASHBOARD_BASE_URL = os.environ.get("DASHBOARD_URL", "https://rh-ai.apps.emerg.pcbk.p1.openshiftapps.com")
 DASHBOARD_RUNS_PATH = "develop-train/pipelines/runs"
 
 GPU_NODE_SELECTOR_KEY = "nvidia.com/gpu.product"
@@ -48,11 +48,6 @@ MLFLOW_EXPERIMENT_NAME = "fine-tuning"
 def _dspa_client() -> kfp.Client:
     with open(SA_TOKEN_PATH) as f:
         token = f.read().strip()
-    # verify_ssl=False matches this codebase's existing handling of other
-    # in-cluster HTTPS services with self-signed/internal certs (e.g.
-    # DefaultHttpxClient(verify=False) in agent.py) -- the DSPA spec's own
-    # caBundleFileMountPath is empty, and there's no simpler verified CA
-    # path for kube-rbac-proxy's serving cert specifically.
     return kfp.Client(host=DSPA_HOST, existing_token=token, namespace=DSPA_NAMESPACE, verify_ssl=False)
 
 

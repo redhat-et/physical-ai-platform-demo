@@ -20,3 +20,4 @@ data:
   ARGOCD_APP_NAME: "physical-ai-platform-dev-gpu"
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc:9091"
   MLFLOW_URL: "https://mlflow.redhat-ods-applications.svc:8443"
+  DASHBOARD_URL: "https://rh-ai.apps.emerg.pcbk.p1.openshiftapps.com"
