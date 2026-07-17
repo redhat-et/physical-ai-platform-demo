@@ -232,8 +232,11 @@ dataset = LeRobotDataset(DATASET_REPO_ID, root="{dataset_mount_path(dataset_repo
 held_out = {eval_episodes}
 print(f"Evaluating against held-out episodes: {{held_out}}")
 
+episode_frame_ranges = dataset.meta.episodes
+
 errors = []
 for ep_idx in held_out:
+    policy.reset()
     from_idx = episode_frame_ranges["dataset_from_index"][ep_idx]
     to_idx = episode_frame_ranges["dataset_to_index"][ep_idx]
     frame_errors = []
