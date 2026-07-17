@@ -18,12 +18,12 @@ dependencies = [
     "huggingface_hub>=0.27",
     "kfp>=2.17,<3.0",
     "kfp-kubernetes>=2.17,<3.0",
+    "httpx>=0.28",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "httpx>=0.28",
 ]
 
 [build-system]

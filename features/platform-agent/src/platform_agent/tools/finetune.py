@@ -3,7 +3,7 @@ from kubernetes import client
 
 from platform_agent.config import settings
 from platform_agent.tools.datasets import DATASET_REPO_LABEL
-from platform_agent.tools.finetune_pipeline import get_pipeline_run_status, submit_pipeline_run
+from platform_agent.tools.finetune_pipeline import get_finetune_eval_metrics, get_pipeline_run_status, submit_pipeline_run
 from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe, get_requirements
 
 FINETUNE_EXP_LABEL = "physical-ai.io/finetune-exp"
@@ -170,6 +170,9 @@ def get_finetune_run_status(exp_name: str) -> str:
     pipeline advances through its own stages on its own -- this is a
     read-only status check, not something that needs to be called
     repeatedly to make progress happen (unlike the old raw-Job version).
+    Also includes mean and per-episode action-MSE eval results once the
+    evaluate stage has logged them to MLflow -- omitted if that stage
+    hasn't run yet or hasn't finished.
 
     Args:
         exp_name: The exp_name passed to submit_finetune_run.
@@ -194,4 +197,20 @@ def get_finetune_run_status(exp_name: str) -> str:
         )
 
     status = get_pipeline_run_status(run_id)
-    return f"{status}\nCheckpoint PVC: '{checkpoint_pvc_name}'."
+    result = f"{status}\nCheckpoint PVC: '{checkpoint_pvc_name}'."
+
+    eval_results = get_finetune_eval_metrics(exp_name)
+    if eval_results:
+        metrics = eval_results["metrics"]
+        per_episode = sorted(
+            ((k[len("action_mse_ep") :], v) for k, v in metrics.items() if k.startswith("action_mse_ep")),
+            key=lambda kv: int(kv[0]),
+        )
+        result += f"\nEval results (MLflow run '{exp_name}', {eval_results['status']}):"
+        if "mean_action_mse" in metrics:
+            result += f"\n  Mean action MSE: {float(metrics['mean_action_mse']):.4f}"
+        if per_episode:
+            per_episode_str = ", ".join(f"{ep}={float(mse):.4f}" for ep, mse in per_episode)
+            result += f"\n  Per-episode MSE: {per_episode_str}"
+
+    return result

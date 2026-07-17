@@ -19,4 +19,4 @@ data:
   TARGET_OVERLAY: "dev-gpu"
   ARGOCD_APP_NAME: "physical-ai-platform-dev-gpu"
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc:9091"
-  MLFLOW_URL: "http://mlflow.physical-ai.svc:5000"
+  MLFLOW_URL: "https://mlflow.redhat-ods-applications.svc:8443"
