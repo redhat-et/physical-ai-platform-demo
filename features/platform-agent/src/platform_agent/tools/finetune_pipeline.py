@@ -20,9 +20,11 @@ used before it moved Data Science Pipelines onto native Kubeflow (Argo
 Workflows) execution.
 """
 
+import os
 import tempfile
 from pathlib import Path
 
+import httpx
 import kfp
 from kfp import dsl
 from kfp import kubernetes as kfp_kubernetes
@@ -40,6 +42,10 @@ DASHBOARD_BASE_URL = "https://rhods-dashboard-redhat-ods-applications.apps.emerg
 
 GPU_NODE_SELECTOR_KEY = "nvidia.com/gpu.product"
 GPU_NODE_SELECTOR_VALUE = "NVIDIA-L40S"
+
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_URL", "https://mlflow.redhat-ods-applications.svc:8443")
+MLFLOW_WORKSPACE = DSPA_NAMESPACE
+MLFLOW_EXPERIMENT_NAME = "fine-tuning"
 
 
 def _dspa_client() -> kfp.Client:
@@ -113,14 +119,9 @@ def submit_pipeline_run(
             task = component()
             task.set_display_name(stage["name"])
             task.set_caching_options(False)
-            # Same env the raw-Job version set (finetune.py's old
-            # _create_stage_job) -- HF_TOKEN specifically is not optional in
-            # practice: pi0.5's tokenizer processor loads config from
-            # PaliGemma's gated HF repo and 401s without it (confirmed live
-            # earlier this session). optional=True so stages that don't need
-            # it (none currently, but matches the old behavior) don't fail
-            # if the secret is ever absent.
             task.set_env_variable("HF_HOME", "/tmp/hf_home")
+            task.set_env_variable("MLFLOW_TRACKING_URI", MLFLOW_TRACKING_URI)
+            task.set_env_variable("MLFLOW_WORKSPACE", MLFLOW_WORKSPACE)
             kfp_kubernetes.use_secret_as_env(
                 task, secret_name="huggingface-token", secret_key_to_env={"HF_TOKEN": "HF_TOKEN"}, optional=True
             )
@@ -192,3 +193,50 @@ def get_pipeline_run_status(run_id: str) -> str:
             result += "\nStages:\n" + "\n".join(task_lines)
 
     return result
+
+
+def get_finetune_eval_metrics(exp_name: str) -> dict | None:
+    """Looks up the evaluate stage's logged metrics for this experiment from
+    MLflow, by run name -- the evaluate stage (finetune_recipes.py's
+    _evaluate_script) logs its own run there under run_name=exp_name, since
+    that's the only identifier both sides can agree on without persisting a
+    new id anywhere (the same reasoning exp_name/dataset_pvc_name naming
+    already relies on elsewhere in this module).
+
+    Returns None (best-effort -- this is a nice-to-have status enrichment,
+    never a reason to fail get_finetune_run_status) if MLflow is
+    unreachable, or if the "fine-tuning" experiment or this run doesn't
+    exist yet (e.g. the evaluate stage hasn't completed, or hasn't run at
+    all on a pre-MLflow-logging pipeline).
+    """
+    try:
+        with open(SA_TOKEN_PATH) as f:
+            token = f.read().strip()
+        headers = {"Authorization": f"Bearer {token}", "X-MLFLOW-WORKSPACE": MLFLOW_WORKSPACE}
+        with httpx.Client(timeout=10.0, verify=False, headers=headers) as http:
+            exp_resp = http.get(
+                f"{MLFLOW_TRACKING_URI}/api/2.0/mlflow/experiments/get-by-name",
+                params={"experiment_name": MLFLOW_EXPERIMENT_NAME},
+            )
+            if exp_resp.status_code != 200:
+                return None
+            experiment_id = exp_resp.json()["experiment"]["experiment_id"]
+
+            search_resp = http.post(
+                f"{MLFLOW_TRACKING_URI}/api/2.0/mlflow/runs/search",
+                json={
+                    "experiment_ids": [experiment_id],
+                    "filter": f"tags.\"mlflow.runName\" = '{exp_name}'",
+                    "max_results": 1,
+                },
+            )
+            search_resp.raise_for_status()
+            runs = search_resp.json().get("runs", [])
+            if not runs:
+                return None
+
+            run = runs[0]
+            metrics = {m["key"]: m["value"] for m in run.get("data", {}).get("metrics", [])}
+            return {"status": run["info"]["status"], "metrics": metrics}
+    except Exception:
+        return None

@@ -192,32 +192,21 @@ lerobot-train \\
 def _evaluate_script(dataset_repo_id: str, exp_name: str, eval_episodes: list[int]) -> str:
     """Offline, self-contained evaluation -- no dependency on
     robotics-playground/Isaac Lab or any external service. Loads the
-    fine-tuned checkpoint via LeRobot's own PreTrainedPolicy.from_pretrained
-    (no conversion needed -- see module docstring), runs it against a few
-    held-out episodes from the staged dataset, and reports action-prediction
-    error plus a load/shape smoke test.
+    fine-tuned checkpoint, runs it against held-out episodes from the
+    staged dataset (using the checkpoint's own saved pre/post-processors,
+    since pi0.5 needs its language inputs tokenized the same way it was
+    trained), and reports per-episode/mean action-prediction error as a
+    smoke test rather than a task-success measure.
 
-    eval_episodes comes from the SAME split_episodes() call that produced
-    _train_script's train_episodes -- confirmed live this actually matters:
-    the previous version independently recomputed "last 5 episodes" here
-    while the train script had no episode filter at all, so these "held-out"
-    episodes had already been seen during training. Passing the identical
-    list computed once in get_recipe is what makes them genuinely unseen.
-
-    Confirmed live that a raw dataset sample can't be passed to
-    policy.select_action directly -- pi0.5 needs observation.language.tokens/
-    observation.language.attention_mask (the tokenized task instruction),
-    which only exist after running the sample through the policy's own
-    saved preprocessor pipeline. Every real LeRobot eval path (lerobot-eval's
-    rollout()) does exactly this: make_pre_post_processors(...) loaded from
-    the SAME checkpoint dir (it reads policy_preprocessor.json/
-    policy_postprocessor.json saved alongside the weights), then
-    preprocessor(batch) before select_action and postprocessor(action) after.
-    Skipping this raises `KeyError: 'observation.language.tokens'` before
-    any real inference happens.
+    Also logs those metrics to MLflow (via its REST API over stdlib
+    urllib, bearer-token + workspace auth -- see finetune_pipeline.py's
+    MLFLOW_TRACKING_URI) so they outlive this stage pod's short lifetime,
+    and are queryable later by finetune.py's get_finetune_run_status.
+    Best-effort: wrapped in its own try/except so an MLflow hiccup can't
+    fail the eval stage itself.
     """
     checkpoint_dir = _checkpoint_dir(exp_name)
-    return f"""\
+    eval_script = f"""\
 set -e
 export HOME=/tmp
 export HF_LEROBOT_HOME={DATASET_MOUNT_ROOT}
@@ -229,6 +218,8 @@ from lerobot.policies import make_pre_post_processors
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 CHECKPOINT_DIR = "{checkpoint_dir}"
+EXP_NAME = "{exp_name}"
+DATASET_REPO_ID = "{dataset_repo_id}"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy = PI05Policy.from_pretrained(CHECKPOINT_DIR).to(device).eval()
 preprocessor, postprocessor = make_pre_post_processors(
@@ -237,28 +228,103 @@ preprocessor, postprocessor = make_pre_post_processors(
     preprocessor_overrides={{"device_processor": {{"device": str(device)}}}},
 )
 
-dataset = LeRobotDataset("{dataset_repo_id}", root="{dataset_mount_path(dataset_repo_id)}")
+dataset = LeRobotDataset(DATASET_REPO_ID, root="{dataset_mount_path(dataset_repo_id)}")
 held_out = {eval_episodes}
 print(f"Evaluating against held-out episodes: {{held_out}}")
 
+episode_frame_ranges = dataset.meta.episodes
+
 errors = []
 for ep_idx in held_out:
-    ep = dataset[ep_idx]
-    ground_truth = np.asarray(ep["action"])
-    batch = {{k: (v.unsqueeze(0) if hasattr(v, "unsqueeze") else v) for k, v in ep.items() if k != "action"}}
-    batch = preprocessor(batch)
-    with torch.no_grad():
-        predicted = policy.select_action(batch)
-    predicted = postprocessor(predicted).cpu().numpy().squeeze()
-    err = float(np.mean((predicted - ground_truth) ** 2))
+    policy.reset()
+    from_idx = episode_frame_ranges["dataset_from_index"][ep_idx]
+    to_idx = episode_frame_ranges["dataset_to_index"][ep_idx]
+    frame_errors = []
+    for frame_idx in range(from_idx, to_idx):
+        ep = dataset[frame_idx]
+        ground_truth = np.asarray(ep["action"])
+        batch = {{k: (v.unsqueeze(0) if hasattr(v, "unsqueeze") else v) for k, v in ep.items() if k != "action"}}
+        batch = preprocessor(batch)
+        with torch.no_grad():
+            predicted = policy.select_action(batch)
+        predicted = postprocessor(predicted).cpu().numpy().squeeze()
+        frame_errors.append(float(np.mean((predicted - ground_truth) ** 2)))
+    err = sum(frame_errors) / len(frame_errors)
     errors.append(err)
-    print(f"episode {{ep_idx}}: action MSE = {{err:.4f}}, shape={{predicted.shape}}")
+    print(f"episode {{ep_idx}}: mean action MSE over {{len(frame_errors)}} frames = {{err:.4f}}")
 
-print(f"EVAL_MEAN_ACTION_MSE={{sum(errors) / len(errors):.4f}}")
+mean_mse = sum(errors) / len(errors)
+print(f"EVAL_MEAN_ACTION_MSE={{mean_mse:.4f}}")
 print("EVAL_SMOKE_TEST=PASS")
+"""
+    mlflow_logging = """
+try:
+    import json
+    import os
+    import ssl
+    import time
+    import urllib.error
+    import urllib.request
+
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as _f:
+        _sa_token = _f.read().strip()
+    _mlflow_headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {_sa_token}",
+        "X-MLFLOW-WORKSPACE": os.environ["MLFLOW_WORKSPACE"],
+    }
+    _no_verify_ctx = ssl.create_default_context()
+    _no_verify_ctx.check_hostname = False
+    _no_verify_ctx.verify_mode = ssl.CERT_NONE
+
+    def _mlflow_request(method, path, payload=None):
+        url = os.environ["MLFLOW_TRACKING_URI"] + path
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers=_mlflow_headers)
+        with urllib.request.urlopen(req, timeout=10, context=_no_verify_ctx) as resp:
+            return json.loads(resp.read())
+
+    try:
+        experiment_id = _mlflow_request(
+            "GET", "/api/2.0/mlflow/experiments/get-by-name?experiment_name=fine-tuning"
+        )["experiment"]["experiment_id"]
+    except urllib.error.HTTPError:
+        experiment_id = _mlflow_request(
+            "POST", "/api/2.0/mlflow/experiments/create", {"name": "fine-tuning"}
+        )["experiment_id"]
+
+    now_ms = int(time.time() * 1000)
+    run_id = _mlflow_request(
+        "POST",
+        "/api/2.0/mlflow/runs/create",
+        {"experiment_id": experiment_id, "run_name": EXP_NAME, "start_time": now_ms},
+    )["run"]["info"]["run_id"]
+
+    metrics = [{"key": "mean_action_mse", "value": mean_mse, "timestamp": now_ms, "step": 0}]
+    for ep_idx, err in zip(held_out, errors):
+        metrics.append({"key": f"action_mse_ep{ep_idx}", "value": err, "timestamp": now_ms, "step": 0})
+
+    _mlflow_request(
+        "POST",
+        "/api/2.0/mlflow/runs/log-batch",
+        {
+            "run_id": run_id,
+            "metrics": metrics,
+            "tags": [{"key": "dataset_repo_id", "value": DATASET_REPO_ID}],
+        },
+    )
+    _mlflow_request(
+        "POST",
+        "/api/2.0/mlflow/runs/update",
+        {"run_id": run_id, "status": "FINISHED", "end_time": int(time.time() * 1000)},
+    )
+    print("Logged eval results to MLflow.")
+except Exception as e:
+    print(f"WARNING: failed to log eval results to MLflow: {e}")
 PYEOF
 cd /tmp && python3 run_eval.py
 """
+    return eval_script + mlflow_logging
 
 
 def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dict]:
@@ -283,11 +349,11 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
     train_episodes, eval_episodes = split_episodes(info["total_episodes"])
 
     # Temporarily reduced from 3_000 -- at the measured ~5.4s/step pace on a
-    # single L40S, 3_000 steps takes ~4.5 hours. 100 steps (~9 minutes) is
+    # single L40S, 3_000 steps takes ~4.5 hours. 50 steps (~4.5 minutes) is
     # enough to validate the full pipeline (train -> checkpoint -> evaluate)
     # end to end without tying up a shared GPU for hours on every dry run.
     # Bump back up for a real training run meant to produce a usable policy.
-    NUM_TRAIN_STEPS = 100
+    NUM_TRAIN_STEPS = 50
 
     return [
         {
