@@ -34,11 +34,8 @@ DSPA_HOST = "https://ds-pipeline-dspa.physical-ai.svc.cluster.local:8443"
 DSPA_NAMESPACE = "physical-ai"
 SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-# RHOAI dashboard's project-scoped pipeline-run URL pattern -- best-effort
-# deep link (not confirmed against every RHOAI version), included as a
-# convenience only. "Data Science Projects > physical-ai > Pipelines" in
-# the dashboard is the reliable fallback if this exact path is stale.
-DASHBOARD_BASE_URL = "https://rhods-dashboard-redhat-ods-applications.apps.emerg.pcbk.p1.openshiftapps.com"
+DASHBOARD_BASE_URL = "https://rh-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+DASHBOARD_RUNS_PATH = "develop-train/pipelines/runs"
 
 GPU_NODE_SELECTOR_KEY = "nvidia.com/gpu.product"
 GPU_NODE_SELECTOR_VALUE = "NVIDIA-L40S"
@@ -147,7 +144,7 @@ def submit_pipeline_run(
         )
         _register_pipeline_version(client, ir_path, model_name, exp_name)
 
-    dashboard_url = f"{DASHBOARD_BASE_URL}/pipelineRuns/{DSPA_NAMESPACE}/pipelineRun/view/{result.run_id}"
+    dashboard_url = f"{DASHBOARD_BASE_URL}/{DASHBOARD_RUNS_PATH}/{DSPA_NAMESPACE}/runs"
     return result.run_id, dashboard_url
 
 

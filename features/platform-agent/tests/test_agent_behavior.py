@@ -364,6 +364,17 @@ def test_get_finetune_run_status_called_for_status_query(chat):
     assert calls[0]["args"].get("exp_name") == "test-exp-1", calls[0]
 
 
+def test_list_finetune_runs_called_for_general_status_query(chat):
+    """Regression: asked broadly about fine-tuning runs with no exp_name
+    given (e.g. because it was forgotten), the agent had no way to look
+    one up -- get_finetune_run_status requires the exact name and there
+    was no listing tool, so a forgotten name meant the run was
+    unrecoverable. list_finetune_runs should be called instead of
+    guessing a name or claiming there's no way to check."""
+    result = chat("What fine-tuning runs are currently going on?")
+    assert "list_finetune_runs" in result["tools_called"], result
+
+
 def test_list_staged_datasets_called_for_staged_query(chat):
     """Asking what's already staged should call list_staged_datasets, not
     fabricate an answer from memory (state can change between turns)."""
