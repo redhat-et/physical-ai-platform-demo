@@ -157,8 +157,9 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
     return (
         f"Started fine-tuning '{model_name}' as experiment '{exp_name}' — pipeline run "
         f"'{run_id}' submitted to Data Science Pipelines with {len(stages)} stage(s): "
-        f"{', '.join(s['name'] for s in stages)}. View it in the RHOAI dashboard at "
-        f"{dashboard_url}, or call get_finetune_run_status('{exp_name}') to check progress."
+        f"{', '.join(s['name'] for s in stages)}. Find it by name ('{exp_name}') in the "
+        f"RHOAI dashboard's pipeline runs list at {dashboard_url}, or call "
+        f"get_finetune_run_status('{exp_name}') to check progress."
     )
 
 
@@ -214,3 +215,41 @@ def get_finetune_run_status(exp_name: str) -> str:
             result += f"\n  Per-episode MSE: {per_episode_str}"
 
     return result
+
+
+@tool
+def list_finetune_runs() -> str:
+    """List fine-tuning experiments started on this cluster. Call this when
+    asked about fine-tuning runs in general (e.g. "what's running",
+    "any fine-tunes in progress") or when the exact exp_name isn't known --
+    get_finetune_run_status requires the exact exp_name and has no other
+    way to look one up, so without this, a forgotten exp_name is
+    unrecoverable.
+
+    Shows each experiment's exp_name and pipeline run state (best-effort --
+    "no pipeline run recorded" if submit_finetune_run failed partway
+    through, "status unavailable" if the pipeline run can't be reached).
+    """
+    core_api = _get_core_api()
+    pvcs = core_api.list_namespaced_persistent_volume_claim(
+        namespace=settings.datasets_namespace,
+        label_selector=FINETUNE_EXP_LABEL,
+    )
+
+    if not pvcs.items:
+        return "No fine-tuning runs found."
+
+    lines = []
+    for pvc in pvcs.items:
+        exp_name = (pvc.metadata.labels or {}).get(FINETUNE_EXP_LABEL, "unknown")
+        run_id = (pvc.metadata.annotations or {}).get(FINETUNE_RUN_ID_ANNOTATION)
+        if not run_id:
+            state = "no pipeline run recorded"
+        else:
+            try:
+                state = get_pipeline_run_status(run_id).splitlines()[0]
+            except Exception:
+                state = "status unavailable"
+        lines.append(f"- {exp_name}: {state}")
+
+    return "Fine-tuning runs:\n" + "\n".join(lines)

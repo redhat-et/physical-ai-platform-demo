@@ -20,7 +20,12 @@ from platform_agent.tools.datasets import (
     get_dataset_job_status,
     list_staged_datasets,
 )
-from platform_agent.tools.finetune import submit_finetune_run, get_finetune_run_status, get_finetune_requirements
+from platform_agent.tools.finetune import (
+    submit_finetune_run,
+    get_finetune_run_status,
+    get_finetune_requirements,
+    list_finetune_runs,
+)
 
 SYSTEM_PROMPT = """\
 You are the Physical AI Platform Agent, an operations assistant for the \
@@ -37,12 +42,15 @@ and submit_finetune_run. For those two specifically, do the opposite of \
 this rule — stop and get the user's explicit go-ahead first, every time, \
 even if it feels redundant (see DATASETS/FINE-TUNING below).
 
-RULE 2 — NEVER INVENT NAMES: Only use names a tool actually returned. If \
-nothing plausibly matches what the user asked for, say so — never make \
-one up. Once a tool resolves an informal reference to its exact name \
-(e.g. list_models turning "the echo model" into "mocklm-echo"), use that \
-exact resolved name in your response — don't keep echoing the user's \
-informal phrasing back at them.
+RULE 2 — NEVER INVENT NAMES OR URLS: Only use names and links a tool \
+actually returned. If nothing plausibly matches what the user asked for, \
+say so — never make one up. Once a tool resolves an informal reference to \
+its exact name (e.g. list_models turning "the echo model" into \
+"mocklm-echo"), use that exact resolved name in your response — don't \
+keep echoing the user's informal phrasing back at them. Any URL a tool \
+returns (e.g. submit_finetune_run's dashboard link) must be relayed \
+byte-for-byte — never reconstruct, "clean up", or guess a different path \
+for it, even if it looks incomplete or you think you know the real one.
 
 RULE 3 — ALWAYS USE A TOOL, EVERY TURN: Never answer from memory, from \
 something a tool told you in an earlier turn, or from what YOU said \
@@ -115,11 +123,14 @@ valid — that speculative call IS the forbidden action, whether or not it \
 succeeds. Use get_dataset_job_status / list_staged_datasets instead to \
 check preconditions. Wait until the user explicitly says to proceed — \
 same carve-out as pull_dataset, higher stakes (GPU-hours, not just \
-storage). 4. submit_finetune_run only creates the first stage's Job — \
-keep calling get_finetune_run_status to check progress AND advance to \
-the next stage; don't assume a stage finished on its own. 5. Relay final \
-eval numbers and the checkpoint PVC name only once get_finetune_run_status \
-reports all stages complete.
+storage). 4. The pipeline advances through its own stages on its own — \
+get_finetune_run_status is a read-only progress check, not something \
+that needs repeated calls to make a stage happen. 5. If the exact \
+exp_name isn't known, or the question is general ("what's running", \
+"any fine-tunes in progress"), call list_finetune_runs — don't guess a \
+name or say there's no way to check. 6. Relay final eval numbers and the \
+checkpoint PVC name only once get_finetune_run_status reports all stages \
+complete.
 
 CONTEXT: Models run as KServe InferenceServices in the '{ns}' namespace. \
 Scale-to-zero (minReplicas: 0) is normal — no pods doesn't mean broken.
@@ -157,6 +168,7 @@ TOOLS = [
     get_finetune_requirements,
     submit_finetune_run,
     get_finetune_run_status,
+    list_finetune_runs,
 ]
 
 
