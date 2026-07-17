@@ -135,6 +135,7 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
     try:
         run_id, dashboard_url = submit_pipeline_run(
             exp_name=exp_name,
+            model_name=model_name,
             stages=stages,
             dataset_pvc_name=dataset_pvc_name,
             checkpoint_pvc_name=checkpoint_pvc_name,

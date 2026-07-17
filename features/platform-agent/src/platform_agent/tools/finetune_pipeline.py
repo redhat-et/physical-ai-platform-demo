@@ -26,6 +26,7 @@ from pathlib import Path
 import kfp
 from kfp import dsl
 from kfp import kubernetes as kfp_kubernetes
+from kfp.dsl import PipelineConfig
 
 DSPA_HOST = "https://ds-pipeline-dspa.physical-ai.svc.cluster.local:8443"
 DSPA_NAMESPACE = "physical-ai"
@@ -78,6 +79,7 @@ def _stage_component(stage: dict):
 
 def submit_pipeline_run(
     exp_name: str,
+    model_name: str,
     stages: list[dict],
     dataset_pvc_name: str,
     checkpoint_pvc_name: str,
@@ -94,9 +96,16 @@ def submit_pipeline_run(
     this is a minor loss of defense-in-depth, not a functional gap) and
     checkpoint read-write. GPU stages get the same NVIDIA-L40S node
     selector the raw Jobs used.
+
+    ttl_seconds_after_success (Argo's ttlStrategy.secondsAfterSuccess) has
+    Argo delete the whole completed Workflow -- pods included -- 15 minutes
+    after a successful finish, independent of the KFP run/execution/
+    artifact records a Run's history lives in (confirmed live: deleting a
+    run's pods doesn't affect its visibility in the dashboard). Left unset
+    for failures so a failed run's pods/logs stick around to debug.
     """
 
-    @dsl.pipeline(name=exp_name)
+    @dsl.pipeline(name=exp_name, pipeline_config=PipelineConfig(ttl_seconds_after_success=900))
     def pipeline():
         previous_task = None
         for stage in stages:
@@ -135,9 +144,31 @@ def submit_pipeline_run(
             namespace=DSPA_NAMESPACE,
             enable_caching=False,
         )
+        _register_pipeline_version(client, ir_path, model_name, exp_name)
 
     dashboard_url = f"{DASHBOARD_BASE_URL}/pipelineRuns/{DSPA_NAMESPACE}/pipelineRun/view/{result.run_id}"
     return result.run_id, dashboard_url
+
+
+def _register_pipeline_version(client: kfp.Client, ir_path: Path, model_name: str, exp_name: str) -> None:
+    """Registers this run's compiled IR under a per-model Pipeline (e.g.
+    "pi05-finetune") so it's browsable under the dashboard's Pipelines tab,
+    not just as a one-off Run. Decoupled from the run submitted above --
+    that still runs from the raw IR file directly -- so a failure here
+    (e.g. a version-name collision) can't break an actual fine-tuning
+    submission over a discoverability nice-to-have.
+    """
+    pipeline_name = f"{model_name}-finetune"
+    try:
+        pipeline_id = client.get_pipeline_id(pipeline_name)
+        if pipeline_id is None:
+            client.upload_pipeline(pipeline_package_path=str(ir_path), pipeline_name=pipeline_name)
+        else:
+            client.upload_pipeline_version(
+                pipeline_package_path=str(ir_path), pipeline_version_name=exp_name, pipeline_id=pipeline_id
+            )
+    except Exception:
+        pass
 
 
 def get_pipeline_run_status(run_id: str) -> str:
