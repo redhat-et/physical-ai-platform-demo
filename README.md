@@ -67,12 +67,14 @@ physical-ai-platform-demo/
 │   │   └── models/            # model catalog (each model = subdirectory)
 │   │       ├── mocklm/        # mock LM (OpenAI-compatible, no GPU)
 │   │       ├── cosmos3-nano/  # NVIDIA Cosmos 3 Nano world model
-│   │       └── dreamzero/     # DreamZero robot policy model
+│   │       ├── dreamzero/     # DreamZero robot policy model
+│   │       └── pi05/          # Pi0.5 robot policy model
 │   └── overlays/              # per-environment overlays
 │       ├── dev/               # minimal, no GPU
 │       ├── dev-gpu/           # GPU-enabled development
 │       └── demo/              # full demo with all models
 ├── argocd/                    # ArgoCD Application CRs and RBAC
+├── hack/                      # operational scripts (e.g. scale-up-model.sh)
 ├── docs/                      # guides (e.g. adding-models.md)
 └── notes/                     # gitignored: local snapshots, research
 ```
@@ -106,6 +108,18 @@ make kubeconform       # schema validation
 ```
 
 CI runs `make validate` on every PR that touches `platform/`.
+
+### Scaling Models
+
+Models use KEDA scale-to-zero. To bring a model up from zero:
+
+```bash
+./hack/scale-up-model.sh pi05          # scale up Pi0.5
+./hack/scale-up-model.sh dreamzero     # scale up DreamZero
+```
+
+The script triggers the KEDA interceptor proxy and monitors the pod
+until it is ready. Models scale back to zero after 1 hour of inactivity.
 
 ## Removing the Platform
 
