@@ -39,6 +39,7 @@ if [[ "$READY" == "true" ]]; then
 fi
 
 echo "Triggering scale-up for ${MODEL}..."
+oc delete pod "scale-trigger-${MODEL}" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
 oc run "scale-trigger-${MODEL}" \
   --rm -i --restart=Never \
   --image=curlimages/curl \
