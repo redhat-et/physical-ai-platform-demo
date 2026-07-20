@@ -13,6 +13,7 @@ data:
     rerun:
       grpc_port: 9876
       web_port: 9090
+      recording_dir: "/data/rerun"
 
     bridge:
       type: "ros2"
@@ -42,6 +43,10 @@ data:
           # yamllint disable-next-line rule:line-length
           endpoint: "ws://pi05-predictor.physical-ai-models.svc.cluster.local/"
           action_horizon: 8
+          action_type: "velocity"
+          camera_mapping:
+            wrist: "observation/wrist_image_left"
+            exterior_1: "observation/exterior_image_1_left"
       embodiment:
         joint_names:
           - panda_joint1

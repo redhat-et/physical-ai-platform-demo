@@ -22,3 +22,10 @@ spec:
               value: "https://robotics-playground-rerun-grpc-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com"
             - name: RERUN_ASSETS_URL
               value: "https://app.rerun.io/version/0.33.1/"
+          volumeMounts:
+            - name: rerun-data
+              mountPath: /data/rerun
+      volumes:
+        - name: rerun-data
+          emptyDir:
+            sizeLimit: 2Gi
