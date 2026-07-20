@@ -4,7 +4,7 @@ set -euo pipefail
 NAMESPACE="${NAMESPACE:-physical-ai-models}"
 KEDA_PROXY="keda-add-ons-http-interceptor-proxy.openshift-keda.svc.cluster.local:8080"
 POLL_INTERVAL=15
-TIMEOUT=600
+TIMEOUT=3600
 
 usage() {
   echo "Usage: $0 <model-name>"
@@ -19,7 +19,7 @@ usage() {
   echo ""
   echo "Environment variables:"
   echo "  NAMESPACE      Target namespace (default: physical-ai-models)"
-  echo "  TIMEOUT        Max wait in seconds (default: 600)"
+  echo "  TIMEOUT        Max wait in seconds (default: 3600)"
   exit 1
 }
 
