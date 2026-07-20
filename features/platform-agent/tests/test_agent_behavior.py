@@ -142,10 +142,10 @@ def test_list_models_called_for_informal_reference(chat):
     assert "list_models" in result["tools_called"], result
     calls = [c for c in result["tool_calls"] if c["name"] == "list_models"]
     assert calls, result
-    # list_models's real output format is "- {name}: ready=... minReplicas=...
+    # list_models's real output format is "- {name}: status=... minReplicas=...
     # url=..." -- check the raw tool result, not just the final paraphrase,
     # to confirm it actually hit the real API rather than fabricating a list.
-    assert "ready=" in (calls[0]["result"] or ""), calls[0]
+    assert "status=" in (calls[0]["result"] or ""), calls[0]
     assert "mocklm-echo" in (result["response"] or ""), (
         f"Expected the resolved name 'mocklm-echo' in the response: {result}"
     )

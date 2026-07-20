@@ -15,10 +15,28 @@ def _get_k8s_client():
     return client.CustomObjectsApi(), client.CoreV1Api()
 
 
+def _live_pod_status(pods: list) -> str:
+    """Same pod-based ground truth as get_model_readiness() — the ISVC's own
+    Ready condition is misleading for scale-to-zero models (KServe reports
+    Ready=True even at zero replicas), so status must come from actual pods.
+    """
+    if not pods:
+        return "scaled to zero (no pods running)"
+    ready_count = sum(
+        1
+        for p in pods
+        if p.status.container_statuses and all(cs.ready for cs in p.status.container_statuses)
+    )
+    if ready_count > 0:
+        return f"running ({ready_count}/{len(pods)} pod(s) ready)"
+    return f"starting ({len(pods)} pod(s) not ready yet)"
+
+
 @tool
 def list_models() -> str:
-    """List all model InferenceServices deployed on the platform with their status."""
-    custom_api, _ = _get_k8s_client()
+    """List all model InferenceServices deployed on the platform with their
+    real-time deployment status (running / scaled to zero / starting)."""
+    custom_api, core_api = _get_k8s_client()
     items = custom_api.list_namespaced_custom_object(
         group="serving.kserve.io",
         version="v1beta1",
@@ -26,23 +44,26 @@ def list_models() -> str:
         plural="inferenceservices",
     )
 
+    all_pods = core_api.list_namespaced_pod(namespace=settings.models_namespace)
+    pods_by_isvc: dict[str, list] = {}
+    for pod in all_pods.items:
+        isvc_name = (pod.metadata.labels or {}).get("serving.kserve.io/inferenceservice")
+        if isvc_name:
+            pods_by_isvc.setdefault(isvc_name, []).append(pod)
+
     results = []
     for isvc in items.get("items", []):
         name = isvc["metadata"]["name"]
-        conditions = isvc.get("status", {}).get("conditions", [])
-        ready = next(
-            (c["status"] for c in conditions if c["type"] == "Ready"),
-            "Unknown",
-        )
-        replicas = isvc.get("spec", {}).get("predictor", {}).get("minReplicas", "?")
+        min_replicas = isvc.get("spec", {}).get("predictor", {}).get("minReplicas", "?")
         url = isvc.get("status", {}).get("url", "N/A")
+        status = _live_pod_status(pods_by_isvc.get(name, []))
         results.append(
-            f"- {name}: ready={ready}, minReplicas={replicas}, url={url}"
+            f"- {name}: status={status}, minReplicas={min_replicas}, url={url}"
         )
 
     if not results:
         return "No InferenceServices found in the models namespace."
-    return "Models deployed:\n" + "\n".join(results)
+    return "Models deployed (live status):\n" + "\n".join(results)
 
 
 CRASH_REASONS = {"CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull", "InvalidImageName"}
