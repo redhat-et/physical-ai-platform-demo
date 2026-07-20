@@ -121,6 +121,21 @@ Models use KEDA scale-to-zero. To bring a model up from zero:
 The script triggers the KEDA interceptor proxy and monitors the pod
 until it is ready. Models scale back to zero after 1 hour of inactivity.
 
+### Updating the Platform Agent's System Prompt
+
+The agent's system prompt lives in `platform/base/agent/configmap.yaml`
+(`AGENT_SYSTEM_PROMPT`). Env vars from a ConfigMap are only read when a
+container starts, so editing the file alone doesn't affect the running
+pod. After editing the prompt, push it live without rebuilding the image:
+
+```bash
+./hack/update-system-prompt.sh
+```
+
+This applies your local `configmap.yaml` to the cluster and restarts the
+`platform-agent` deployment. Commit and push the change afterward so
+ArgoCD's self-heal doesn't revert it.
+
 ## Removing the Platform
 
 ```bash

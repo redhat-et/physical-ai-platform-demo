@@ -8,6 +8,7 @@ const extensions = [
       section: "physical-ai-studio",
       path: "/physicalAiStudio/platformAgent/*",
       label: "Experimental",
+      group: "1_platform-agent",
     },
   },
   {
