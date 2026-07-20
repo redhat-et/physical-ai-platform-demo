@@ -20,13 +20,20 @@ spec:
     - uv
     - run
     args:
-    - scripts/serve_policy.py
+    - serve_with_warmup.py
     - policy:checkpoint
     - --policy.config=pi05_droid
     - --policy.dir=/mnt/models
     env:
     - name: HF_HOME
       value: /tmp/hf_home
+    - name: TRITON_CACHE_DIR
+      value: /cache/triton
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /cache/inductor
+    volumeMounts:
+    - name: triton-cache
+      mountPath: /cache
     resources:
       requests:
         cpu: "2"

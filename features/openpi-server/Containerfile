@@ -34,6 +34,9 @@ RUN /.venv/bin/python -c "import transformers; print(transformers.__file__)" | \
 # Install the project itself
 RUN uv sync --frozen --no-dev
 
+# Warmup wrapper: runs a dummy inference before accepting connections
+COPY serve_with_warmup.py /app/serve_with_warmup.py
+
 EXPOSE 8000
 
 # SERVER_ARGS is set by the ServingRuntime command/args

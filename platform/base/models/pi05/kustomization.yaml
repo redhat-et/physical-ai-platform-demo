@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - pvc.yaml
+  - triton-cache-pvc.yaml
   - model-download-job.yaml
   - servingruntime.yaml
   - inferenceservice.yaml
