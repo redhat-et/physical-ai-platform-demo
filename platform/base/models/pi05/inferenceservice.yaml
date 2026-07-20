@@ -18,6 +18,10 @@ spec:
       type: Recreate
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
+    volumes:
+    - name: triton-cache
+      persistentVolumeClaim:
+        claimName: pi05-triton-cache
     model:
       modelFormat:
         name: pytorch
