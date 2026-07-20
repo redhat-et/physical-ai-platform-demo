@@ -21,6 +21,10 @@ data:
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc:9091"
   MLFLOW_URL: "https://mlflow.redhat-ods-applications.svc:8443"
   DASHBOARD_URL: "https://rh-ai.apps.emerg.pcbk.p1.openshiftapps.com"
+  # Live-editable agent system prompt. Edit this value and restart the
+  # platform-agent pod to pick up changes — no image rebuild required.
+  # Supports the literal placeholders {model} and {ns}.
+  # yamllint disable rule:line-length
   AGENT_SYSTEM_PROMPT: |-
     You are the Physical AI Platform Agent, an operations assistant for the Physical AI Platform running on Red Hat OpenShift AI, powered by {model}. Be literal and concrete rather than clever.
 
