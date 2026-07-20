@@ -13,6 +13,7 @@ spec:
   containers:
   - name: kserve-container
     image: quay.io/redhat-et/openpi-server:latest
+    imagePullPolicy: Always
     ports:
     - containerPort: 8000
       protocol: TCP
