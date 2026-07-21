@@ -26,11 +26,13 @@ from platform_agent.tools.finetune import (
     get_finetune_requirements,
     list_finetune_runs,
 )
+from platform_agent.tools.skills import get_skill, skills_index
 
 SYSTEM_PROMPT = (
     settings.system_prompt
     .replace("{model}", settings.llm_model)
     .replace("{ns}", settings.models_namespace)
+    .replace("{skills}", skills_index())
 )
 
 TOOLS = [
@@ -54,6 +56,7 @@ TOOLS = [
     submit_finetune_run,
     get_finetune_run_status,
     list_finetune_runs,
+    get_skill,
 ]
 
 
