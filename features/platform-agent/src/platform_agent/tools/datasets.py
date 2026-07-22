@@ -19,6 +19,34 @@ def _get_clients():
     return client.CoreV1Api(), client.BatchV1Api()
 
 
+def _resolve_config_split(
+    dataset_repo_id: str, config: str | None, split: str, http: httpx.Client
+) -> tuple[str, str, list[str]] | str:
+    """Shared config/split resolution against the HF datasets-server API.
+    Returns (resolved_config, resolved_split, available_configs), or an
+    error string.
+    """
+    splits_resp = http.get(f"{DATASETS_SERVER_URL}/splits", params={"dataset": dataset_repo_id})
+    if splits_resp.status_code != 200:
+        return (
+            f"Could not fetch split info for '{dataset_repo_id}' "
+            f"(HTTP {splits_resp.status_code}) — it may be private, "
+            f"gated, or not yet processed by the datasets-server."
+        )
+    available = splits_resp.json().get("splits", [])
+    if not available:
+        return f"'{dataset_repo_id}' has no known splits."
+
+    resolved_config = config or available[0]["config"]
+    matching = [s for s in available if s["config"] == resolved_config]
+    if not matching:
+        configs = sorted({s["config"] for s in available})
+        return f"Config '{config}' not found for '{dataset_repo_id}'. Available configs: {configs}"
+
+    resolved_split = split if any(s["split"] == split for s in matching) else matching[0]["split"]
+    return resolved_config, resolved_split, sorted({s["config"] for s in available})
+
+
 def _fetch_schema_preview(dataset_repo_id: str, config: str | None, split: str) -> dict | str:
     """Shared helper for get_dataset_info/validate_dataset_schema. Returns a
     dict with resolved config/split/features/sample_row, or an error string.
@@ -27,26 +55,10 @@ def _fetch_schema_preview(dataset_repo_id: str, config: str | None, split: str) 
     """
     try:
         with httpx.Client(timeout=15.0) as http:
-            splits_resp = http.get(
-                f"{DATASETS_SERVER_URL}/splits", params={"dataset": dataset_repo_id}
-            )
-            if splits_resp.status_code != 200:
-                return (
-                    f"Could not fetch split info for '{dataset_repo_id}' "
-                    f"(HTTP {splits_resp.status_code}) — it may be private, "
-                    f"gated, or not yet processed by the datasets-server."
-                )
-            available = splits_resp.json().get("splits", [])
-            if not available:
-                return f"'{dataset_repo_id}' has no known splits."
-
-            resolved_config = config or available[0]["config"]
-            matching = [s for s in available if s["config"] == resolved_config]
-            if not matching:
-                configs = sorted({s["config"] for s in available})
-                return f"Config '{config}' not found for '{dataset_repo_id}'. Available configs: {configs}"
-
-            resolved_split = split if any(s["split"] == split for s in matching) else matching[0]["split"]
+            resolved = _resolve_config_split(dataset_repo_id, config, split, http)
+            if isinstance(resolved, str):
+                return resolved
+            resolved_config, resolved_split, available_configs = resolved
 
             rows_resp = http.get(
                 f"{DATASETS_SERVER_URL}/first-rows",
@@ -71,31 +83,138 @@ def _fetch_schema_preview(dataset_repo_id: str, config: str | None, split: str) 
     return {
         "config": resolved_config,
         "split": resolved_split,
-        "available_configs": sorted({s["config"] for s in available}),
+        "available_configs": available_configs,
         "features": features,
         "sample_row": sample_row,
     }
 
 
+MAX_DATASET_ROWS_PER_CALL = 20
+
+
 @tool
-def search_datasets(query: str, task: str | None = None, limit: int = 10) -> str:
-    """Search Hugging Face Hub for datasets by keyword, optionally filtered
-    by task category. No download happens — this is a pure metadata search.
+def get_dataset_rows(
+    dataset_repo_id: str,
+    offset: int = 0,
+    length: int = 5,
+    config: str | None = None,
+    split: str = "train",
+) -> str:
+    """Fetch a range of raw rows from a Hugging Face dataset — unlike
+    get_dataset_info's single sample row, this lets you compare fields
+    against each other across several rows. Use this when a field's
+    meaning isn't documented (e.g. an unlabeled 'action' column) and you
+    need to check it against a separately-labeled field (e.g.
+    'observation.state.cartesian_position') at adjacent row indices to see
+    whether they track each other. No download happens.
+
+    Args:
+        dataset_repo_id: Hugging Face dataset repo id.
+        offset: Row index to start from (default 0).
+        length: Number of rows to fetch (default 5, capped at 20).
+        config: Dataset config/subset name. Defaults to the first available one.
+        split: Dataset split (default 'train').
+    """
+    length = max(1, min(length, MAX_DATASET_ROWS_PER_CALL))
+    try:
+        with httpx.Client(timeout=15.0) as http:
+            resolved = _resolve_config_split(dataset_repo_id, config, split, http)
+            if isinstance(resolved, str):
+                return resolved
+            resolved_config, resolved_split, _ = resolved
+
+            rows_resp = http.get(
+                f"{DATASETS_SERVER_URL}/rows",
+                params={
+                    "dataset": dataset_repo_id,
+                    "config": resolved_config,
+                    "split": resolved_split,
+                    "offset": offset,
+                    "length": length,
+                },
+            )
+            if rows_resp.status_code != 200:
+                return (
+                    f"Could not fetch rows for '{dataset_repo_id}' "
+                    f"config='{resolved_config}' split='{resolved_split}' "
+                    f"offset={offset} length={length} (HTTP {rows_resp.status_code})."
+                )
+            payload = rows_resp.json()
+    except httpx.HTTPError as e:
+        return f"Network error reaching the HF datasets-server: {e}"
+
+    rows = payload.get("rows", [])
+    if not rows:
+        return (
+            f"No rows returned for '{dataset_repo_id}' at offset={offset} "
+            f"(config='{resolved_config}', split='{resolved_split}')."
+        )
+
+    lines = [
+        f"'{dataset_repo_id}' config='{resolved_config}' split='{resolved_split}', "
+        f"rows {offset}-{offset + len(rows) - 1}:"
+    ]
+    for r in rows:
+        lines.append(f"  row_idx={r.get('row_idx')}: {r.get('row')}")
+    return "\n".join(lines)
+
+
+@tool
+def search_datasets(
+    query: str,
+    task: str | None = None,
+    tags: list[str] | None = None,
+    license: str | None = None,
+    size_category: str | None = None,
+    gated: bool | None = None,
+    sort: str = "downloads",
+    limit: int = 10,
+) -> str:
+    """Search Hugging Face Hub for datasets by keyword, with real Hub-level
+    filters. No download happens — this is a pure metadata search.
 
     Args:
         query: Free-text search query, e.g. 'robot manipulation trajectories'.
         task: Optional HF task category to filter by, e.g. 'robotics',
             'video-generation', 'image-to-text'.
+        tags: Arbitrary Hub tags to filter by (all must match). Useful real
+            examples: 'modality:video'/'modality:image'/'modality:tabular'
+            (observation type), 'format:parquet', or a codebase tag like
+            'LeRobot'. Embodiment sometimes appears as a free-form tag too
+            (e.g. 'franka', 'droid') but this isn't standardized or
+            guaranteed present the way license/format tags are -- don't
+            rely on its absence to mean a different embodiment.
+        license: License id to filter by, e.g. 'mit', 'apache-2.0'.
+        size_category: Hub size bucket to filter by -- one of 'n<1K',
+            '1K<n<10K', '10K<n<100K', '100K<n<1M', '1M<n<10M', '10M<n<100M',
+            '100M<n<1B', '1B<n<10B', 'n>1T'. This buckets by ROW/FRAME
+            count, NOT storage size in GB and NOT episode count (e.g.
+            lerobot/droid_100's 32,212 frames falls in '10K<n<100K') --
+            never use this as a size-in-GB proxy. For an actual GB limit,
+            use search_compatible_lerobot_datasets's max_size_gb instead.
+        gated: Filter by whether a dataset requires approval before
+            download. Pass False to exclude gated datasets -- worth
+            checking before ever suggesting one to pull_dataset.
+        sort: One of 'downloads' (default), 'likes', 'trending_score',
+            'created_at', 'last_modified'. Use 'last_modified' to surface
+            actively-maintained datasets instead of just popular ones.
         limit: Max number of results to return (default 10).
     """
     from huggingface_hub import HfApi
+
+    filter_tags = list(tags) if tags else []
+    if license:
+        filter_tags.append(f"license:{license}")
 
     try:
         results = list(
             HfApi().list_datasets(
                 search=query,
                 task_categories=[task] if task else None,
-                sort="downloads",
+                filter=filter_tags or None,
+                size_categories=[size_category] if size_category else None,
+                gated=gated,
+                sort=sort,
                 limit=limit,
             )
         )
@@ -107,10 +226,11 @@ def search_datasets(query: str, task: str | None = None, limit: int = 10) -> str
 
     lines = []
     for d in results:
-        tags = ", ".join((d.tags or [])[:5])
+        tag_preview = ", ".join((d.tags or [])[:5])
+        gated_str = ", gated=True" if d.gated else ""
         lines.append(
-            f"- {d.id}: downloads={d.downloads or 0}, likes={d.likes or 0}, "
-            f"tags=[{tags}]"
+            f"- {d.id}: downloads={d.downloads or 0}, likes={d.likes or 0}"
+            f"{gated_str}, tags=[{tag_preview}]"
         )
     return f"Datasets matching '{query}':\n" + "\n".join(lines)
 
@@ -142,11 +262,13 @@ def _dataset_size_bytes(dataset_repo_id: str) -> int | None:
 
 @tool
 def get_dataset_info(dataset_repo_id: str, config: str | None = None, split: str = "train") -> str:
-    """Get size, license, configs/splits, column schema, and a sample row for
-    a Hugging Face dataset — without downloading it. Always call this and
-    relay its size/license to the user before ever calling pull_dataset:
-    pulling consumes real shared-cluster storage, so the user must explicitly
-    confirm after seeing this info.
+    """Get size, license, gated status, tags, creation/last-modified dates,
+    configs/splits, column schema, and a sample row for a Hugging Face
+    dataset — without downloading it. Always call this and relay its
+    size/license to the user before ever calling pull_dataset: pulling
+    consumes real shared-cluster storage, so the user must explicitly
+    confirm after seeing this info. Check Gated before ever suggesting
+    pull_dataset -- a gated dataset needs manual approval first.
 
     Args:
         dataset_repo_id: Hugging Face dataset repo id, e.g. 'GEAR-Dreams/DreamZero-DROID'.
@@ -186,8 +308,64 @@ def get_dataset_info(dataset_repo_id: str, config: str | None = None, split: str
         f"License: {license_str}\n"
         f"Task categories: {task_categories}\n"
         f"Downloads: {info.downloads or 0}, Likes: {info.likes or 0}\n"
+        f"Gated: {info.gated}\n"
+        f"Created: {info.created_at}, Last modified: {info.last_modified}\n"
+        f"Tags: {info.tags or []}\n"
         f"{schema_section}"
     )
+
+
+MAX_DATASET_FILE_BYTES = 2_000_000
+MAX_DATASET_FILE_CHARS = 20_000
+
+
+@tool
+def get_dataset_file(dataset_repo_id: str, filename: str) -> str:
+    """Fetch one file's text content from a Hugging Face dataset repo —
+    e.g. 'README.md' for collection-methodology/task-diversity narrative,
+    or 'meta/stats.json' for precomputed normalization stats — that
+    get_dataset_info/validate_lerobot_dataset don't surface. This is for
+    reading docs/metadata, not data files: refuses anything over ~2MB or
+    not decodable as text. Use pull_dataset to actually download a dataset.
+
+    Args:
+        dataset_repo_id: Hugging Face dataset repo id.
+        filename: Exact path within the repo, e.g. 'README.md' or 'meta/stats.json'.
+    """
+    from huggingface_hub import HfApi, hf_hub_download
+
+    try:
+        info = HfApi().dataset_info(dataset_repo_id, files_metadata=True)
+    except Exception as e:
+        return f"Could not look up '{dataset_repo_id}': {e}"
+
+    sibling = next((s for s in (info.siblings or []) if s.rfilename == filename), None)
+    if sibling is None:
+        available = sorted(s.rfilename for s in (info.siblings or []))[:30]
+        return f"'{filename}' not found in '{dataset_repo_id}'. Some files present: {available}"
+
+    size = sibling.size or (sibling.lfs.size if sibling.lfs else 0)
+    if size and size > MAX_DATASET_FILE_BYTES:
+        return (
+            f"'{filename}' is {size / 1e6:.1f}MB — too large to fetch as text "
+            f"(limit {MAX_DATASET_FILE_BYTES / 1e6:.0f}MB). This tool is for "
+            f"docs/metadata, not data files."
+        )
+
+    try:
+        path = hf_hub_download(repo_id=dataset_repo_id, repo_type="dataset", filename=filename)
+    except Exception as e:
+        return f"Could not download '{filename}' from '{dataset_repo_id}': {e}"
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        return f"'{filename}' isn't text — this tool only reads text/metadata files."
+
+    if len(content) > MAX_DATASET_FILE_CHARS:
+        content = content[:MAX_DATASET_FILE_CHARS] + f"\n... (truncated, {len(content)} total characters)"
+    return f"'{dataset_repo_id}/{filename}':\n{content}"
 
 
 @tool
@@ -271,6 +449,7 @@ def search_compatible_lerobot_datasets(
     expected_robot_type: str | None = None,
     expected_feature_keys: list[str] | None = None,
     max_size_gb: float | None = None,
+    license: str | None = None,
     limit: int = 5,
 ) -> str:
     """Search Hugging Face Hub for LeRobot-format robot-policy datasets and
@@ -297,25 +476,32 @@ def search_compatible_lerobot_datasets(
             accept any robot type.
         expected_feature_keys: Exact LeRobot feature keys the target
             model's data config expects (dot-notation, e.g.
-            'observation.images.wrist_image_left'). Only pass values that
-            came from get_finetune_requirements or the user -- never a
-            guess (real DROID re-hosts vary in exact naming). Omit to skip
-            this check.
+            'observation.images.wrist_image_left'). Only pass values
+            documented for the target model (see the datasets skill) or
+            given directly by the user -- never a guess (real DROID
+            re-hosts vary in exact naming). Omit to skip this check.
         max_size_gb: Skip candidates larger than this size in GB. Omit to
             accept any size.
+        license: License id to filter by, e.g. 'mit', 'apache-2.0'. Omit to
+            accept any license.
         limit: Max number of COMPATIBLE datasets to return (more candidates
             than this may be checked internally to find them).
     """
     from huggingface_hub import HfApi
 
+    filter_tags = ["LeRobot"]
+    if license:
+        filter_tags.append(f"license:{license}")
+
     try:
-        # filter="LeRobot" narrows at the API level to datasets carrying that
-        # tag, before we spend a per-candidate network call on each one --
-        # confirmed empirically that every genuine LeRobot-format dataset
-        # checked this session (including lerobot/droid_100) carries this
-        # exact tag, so this shouldn't cause false negatives in practice.
+        # filter=["LeRobot", ...] narrows at the API level to datasets carrying
+        # that tag (+ license, if given), before we spend a per-candidate
+        # network call on each one -- confirmed empirically that every genuine
+        # LeRobot-format dataset checked this session (including
+        # lerobot/droid_100) carries this exact tag, so this shouldn't cause
+        # false negatives in practice.
         candidates = list(
-            HfApi().list_datasets(search=query, filter="LeRobot", sort="downloads", limit=limit * 4)
+            HfApi().list_datasets(search=query, filter=filter_tags, sort="downloads", limit=limit * 4)
         )
     except Exception as e:
         return f"Dataset search failed: {e}"
@@ -416,7 +602,6 @@ def _count_camera_features(features: dict, substring: str) -> int:
 @tool
 def validate_lerobot_dataset(
     dataset_repo_id: str,
-    model_name: str | None = None,
     expected_action_dim: int | None = None,
     expected_exterior_cameras: int | None = None,
     expected_wrist_cameras: int | None = None,
@@ -435,16 +620,13 @@ def validate_lerobot_dataset(
     one is required depends on the training mechanism a recipe uses, not a
     fixed platform-wide fact).
 
-    STRONGLY PREFER passing model_name (e.g. 'pi05') over manually passing
-    expected_exterior_cameras/expected_wrist_cameras/expected_action_dim
-    yourself: model_name looks the real numbers up directly from the same
-    recipe get_finetune_requirements reads, in code, with no re-typing step
-    for you to get wrong. Manually copying numbers from a prior
-    get_finetune_requirements call into this call's arguments has
-    repeatedly gone wrong in practice (confirmed: swapped counts, both
-    counts set to the same wrong value) even when the correct numbers were
-    sitting right there in context -- model_name eliminates that transcription
-    step entirely by not requiring it.
+    Pass expected_action_dim/expected_exterior_cameras/expected_wrist_cameras
+    from the target model's documented requirements (see the datasets
+    skill) -- never guess or invent them. A dimension-count match alone is
+    necessary, not sufficient: it doesn't tell you whether the action
+    feature's actual physical meaning (joint position vs velocity vs
+    end-effector pose) matches what the target recipe expects -- see the
+    datasets skill's note on this for a real, confirmed example.
 
     Note: expected_action_dim compares the RAW dataset's action feature
     shape, not a model's internal (possibly padded/unified) action space --
@@ -453,43 +635,22 @@ def validate_lerobot_dataset(
     transforms handle that conversion.
 
     NEVER invent an expected_feature_keys value -- if you don't have one
-    from get_finetune_requirements or the user, omit it and read the
-    returned Features list yourself instead of asserting a match/mismatch.
+    documented for the target model or given by the user, omit it and read
+    the returned Features list yourself instead of asserting a match/mismatch.
 
     Args:
         dataset_repo_id: Hugging Face dataset repo id, e.g. 'lerobot/droid_100'.
-        model_name: Fine-tuning recipe to check compatibility against (e.g.
-            'pi05') -- auto-fills the expected_* args below from the same
-            source get_finetune_requirements uses. Any expected_* arg passed
-            explicitly overrides the auto-filled value for that field only.
         expected_action_dim: Raw action feature dimensionality to check for.
-            Only pass this manually if you're not passing model_name.
         expected_exterior_cameras: Number of exterior-camera features
             expected (counts image/video features with 'exterior' in the
-            key name, regardless of exact spelling). Only pass this
-            manually if you're not passing model_name.
+            key name, regardless of exact spelling).
         expected_wrist_cameras: Number of wrist-camera features expected
-            (same counting approach, for 'wrist'). Only pass this manually
-            if you're not passing model_name.
+            (same counting approach, for 'wrist').
         expected_feature_keys: Exact LeRobot feature keys, only if you
             already know them are correct for this exact dataset (e.g. the
             user gave them, or you already fetched this dataset's own
             Features list earlier this conversation) -- see warning above.
     """
-    if model_name:
-        try:
-            from platform_agent.tools.finetune_recipes import get_requirements
-
-            req = get_requirements(model_name)
-            if expected_action_dim is None:
-                expected_action_dim = req.get("expected_action_dim")
-            if expected_exterior_cameras is None:
-                expected_exterior_cameras = req.get("expected_exterior_cameras")
-            if expected_wrist_cameras is None:
-                expected_wrist_cameras = req.get("expected_wrist_cameras")
-        except ValueError as e:
-            return str(e)
-
     info = _fetch_lerobot_info(dataset_repo_id)
     if isinstance(info, str):
         return info

@@ -14,6 +14,8 @@ from platform_agent.tools.datasets import (
     search_datasets,
     search_compatible_lerobot_datasets,
     get_dataset_info,
+    get_dataset_rows,
+    get_dataset_file,
     validate_dataset_schema,
     validate_lerobot_dataset,
     pull_dataset,
@@ -23,7 +25,6 @@ from platform_agent.tools.datasets import (
 from platform_agent.tools.finetune import (
     submit_finetune_run,
     get_finetune_run_status,
-    get_finetune_requirements,
     list_finetune_runs,
 )
 from platform_agent.tools.skills import get_skill, skills_index
@@ -47,12 +48,13 @@ TOOLS = [
     search_datasets,
     search_compatible_lerobot_datasets,
     get_dataset_info,
+    get_dataset_rows,
+    get_dataset_file,
     validate_dataset_schema,
     validate_lerobot_dataset,
     pull_dataset,
     get_dataset_job_status,
     list_staged_datasets,
-    get_finetune_requirements,
     submit_finetune_run,
     get_finetune_run_status,
     list_finetune_runs,

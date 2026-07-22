@@ -33,44 +33,11 @@ CHECKPOINT_MOUNT_PATH = "/mnt/checkpoint"
 # assumption hold.
 PI05_PRETRAINED_PATH = "lerobot/pi05_base"
 
-# What a fine-tuning dataset must actually look like for this recipe --
-# single source of truth for get_finetune_requirements, so this can't drift
-# from what training actually does. NOT a strict feature-key allowlist:
-# real-world DROID re-hosts on HF vary in exact naming (e.g.
-# 'observation.image.X' vs 'observation.images.X', combined vs separate
-# joint/gripper state) -- confirmed by checking multiple real datasets --
-# so this is guidance for search/manual review, not an exact-match filter.
-DATASET_REQUIREMENTS = {
-    "pi05": {
-        "dataset_format": (
-            "LeRobot v3.0 (lerobot-train's current default -- NOT the older v2.x; "
-            "a v2.x dataset needs `python -m lerobot.datasets.v30.convert_dataset_v21_to_v30` "
-            "first, or an older lerobot package pin. This is the opposite of what our "
-            "earlier openpi-based recipe needed -- the version requirement is tied to "
-            "which training mechanism a recipe uses, not a fixed platform-wide fact.)"
-        ),
-        "robot_type": "franka",
-        "expected_exterior_cameras": 2,
-        "expected_wrist_cameras": 1,
-        "expected_action_dim": 7,
-        "state_action": "joint position + gripper position (as separate or combined fields), 7-dim action",
-        "search_query_hint": "droid",
-        "search_note": (
-            "Search for 'droid', not 'pi05' -- 'pi05' as a keyword returns datasets for ANY "
-            "embodiment someone used with a pi0.5 model (LIBERO sim, humanoids, custom rigs "
-            "with different camera layouts), not specifically DROID-compatible data."
-        ),
-    }
-}
-
-
-def get_requirements(model_name: str) -> dict:
-    """Returns this model's fine-tuning dataset requirements (see
-    DATASET_REQUIREMENTS), for get_finetune_requirements to format.
-    """
-    if model_name not in DATASET_REQUIREMENTS:
-        raise ValueError(f"No fine-tuning requirements defined for '{model_name}' -- only 'pi05' is defined so far.")
-    return DATASET_REQUIREMENTS[model_name]
+# Per-model dataset-compatibility requirements (embodiment, camera counts,
+# action space, dataset format) live in the `datasets` skill
+# (platform_agent/skills/datasets.md), not here -- that content needs to
+# express real uncertainty/caveats a Python dict can't, and shouldn't imply
+# machine-checked ground truth it isn't.
 
 
 def dataset_mount_path(dataset_repo_id: str) -> str:

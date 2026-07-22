@@ -47,7 +47,7 @@ def test_skills_index_lists_all_skills():
 
 def test_get_skill_returns_body():
     result = get_skill.invoke({"name": "datasets"})
-    assert "get_finetune_requirements" in result
+    assert "Franka Panda" in result
 
 
 def test_get_skill_unknown_name_lists_available():

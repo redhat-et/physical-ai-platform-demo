@@ -4,7 +4,7 @@ from kubernetes import client
 from platform_agent.config import settings
 from platform_agent.tools.datasets import DATASET_REPO_LABEL
 from platform_agent.tools.finetune_pipeline import get_finetune_eval_metrics, get_pipeline_run_status, submit_pipeline_run
-from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe, get_requirements
+from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe
 
 FINETUNE_EXP_LABEL = "physical-ai.io/finetune-exp"
 FINETUNE_RUN_ID_ANNOTATION = "physical-ai.io/kfp-run-id"
@@ -22,45 +22,6 @@ def _get_core_api():
 
 def _checkpoint_pvc_name(exp_name: str) -> str:
     return f"finetune-{exp_name}-checkpoint-pvc"
-
-
-@tool
-def get_finetune_requirements(model_name: str = "pi05") -> str:
-    """Get a model's fine-tuning dataset requirements -- robot embodiment,
-    camera/state layout, dataset format, and a suggested search
-    query/filter -- BEFORE searching for a dataset. Call this first, then
-    pass its search_query_hint and robot_type into
-    search_compatible_lerobot_datasets, instead of searching for the model
-    name itself: a model-name keyword (e.g. 'pi05') returns datasets for
-    ANY embodiment anyone used with that model (simulated benchmarks,
-    humanoids, custom rigs with different cameras), not specifically the
-    embodiment THIS recipe's data config expects. This is derived from the
-    same recipe definition submit_finetune_run actually trains against, so
-    it can't drift out of sync with what training really needs.
-
-    Args:
-        model_name: Which fine-tuning recipe to look up. Only 'pi05' exists so far.
-    """
-    try:
-        req = get_requirements(model_name)
-    except ValueError as e:
-        return str(e)
-
-    return (
-        f"Fine-tuning dataset requirements for '{model_name}':\n"
-        f"Dataset format: {req['dataset_format']}\n"
-        f"Robot embodiment: {req['robot_type']}\n"
-        f"Camera views expected: {req['expected_exterior_cameras']} exterior, "
-        f"{req['expected_wrist_cameras']} wrist\n"
-        f"State/action: {req['state_action']}\n\n"
-        f"Suggested search: search_compatible_lerobot_datasets(query='{req['search_query_hint']}', "
-        f"expected_robot_type='{req['robot_type']}')\n"
-        f"{req['search_note']}\n\n"
-        f"To check a specific candidate, call validate_lerobot_dataset(dataset_repo_id=..., "
-        f"model_name='{model_name}') -- pass model_name, do NOT re-type "
-        f"expected_exterior_cameras/expected_wrist_cameras yourself from this text; "
-        f"model_name looks the same numbers up directly with no copying step to get wrong."
-    )
 
 
 @tool

@@ -3,31 +3,22 @@ name: new-model-runtime
 description: Use when onboarding a model whose serving runtime this platform hasn't run before (not stock vLLM chat or vLLM-Omni) — its own native server/CLI, not something generate_model_manifests can template. See also the deploy-model skill for models that DO fit an existing runtime.
 ---
 NEW MODEL RUNTIME — for a model that doesn't fit generate_model_manifests'
-two hardcoded templates (stock vLLM for chat, vLLM-Omni for image/video).
-generate_model_manifests cannot help here — you must hand-draft the
-manifests, following this repo's documented conventions and real examples
-below. Real example: pi0.5 does NOT run under vLLM-Omni at all (upstream
-doesn't support it — vllm-project/vllm-omni#4136); it runs via Physical
-Intelligence's own `openpi` server package instead. Treat any model whose
-serving mechanism you don't already know as this case by default — do not
-force it through generate_model_manifests just because it's the tool you
-have.
+two templates (stock vLLM for chat, vLLM-Omni for image/video). Hand-draft
+the manifests instead; don't force it through generate_model_manifests.
+Example: pi0.5 doesn't run under vLLM-Omni at all (unsupported upstream —
+vllm-project/vllm-omni#4136) — it runs via Physical Intelligence's own
+`openpi` server. Treat any unfamiliar serving mechanism as this case by
+default.
 
-STEP 0 — GET THE REAL SERVING DETAILS FIRST, DON'T GUESS: You need the
-model's actual container image (or a Dockerfile/build recipe to reference),
-its real entrypoint/command/args, the port it listens on, required env vars,
-and its API shape (does it speak an existing output_kind — chat/image/video
-— or none of them). If the user hasn't given you these and they're not
-already in the conversation, ask for them or for a link to the model's own
-serving docs/repo — same principle as RULE 2 (never invent names/URLs):
-inventing a CLI flag or entrypoint for a real server produces a broken pod,
-it doesn't fail safely the way a wrong hardware estimate does. Sizing tools
-(list_cluster_gpus, estimate_model_footprint) are still worth calling for a
-starting point, but for an unfamiliar runtime treat the footprint estimate
-as a weaker signal than usual — it's derived from raw parameter byte-size,
-and an unfamiliar runtime's real memory/compute behavior (compiled-kernel
-caches, warmup passes, its own batching) may not track that the way a stock
-vLLM deployment does.
+STEP 0 — GET THE REAL SERVING DETAILS, DON'T GUESS: container image, real
+entrypoint/command/args, port, required env vars, API shape (an existing
+output_kind, or none). If you don't have these, ask for them or a link to
+the model's serving docs — inventing a CLI flag or entrypoint produces a
+broken pod, unlike a wrong hardware estimate which fails safely. Still call
+list_cluster_gpus/estimate_model_footprint for a starting point, but treat
+the footprint estimate as weaker than usual here — it's sized from raw
+parameter bytes, and an unfamiliar runtime's real memory/compute behavior
+(compiled-kernel caches, warmup, its own batching) may not track that.
 
 FILE STRUCTURE — see docs/adding-models.md for the canonical two patterns
 (KServe InferenceService for self-hosted models, MaaS ExternalModel for
