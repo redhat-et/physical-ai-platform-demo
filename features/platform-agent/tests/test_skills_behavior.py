@@ -61,6 +61,23 @@ def test_get_skill_called_for_unfamiliar_runtime(chat):
     assert any((c["args"] or {}).get("name") == "new-model-runtime" for c in calls), calls
 
 
+def test_get_skill_called_for_deploy_checkpoint(chat):
+    result = chat(
+        "My fine-tuning run 'test-exp-1' finished -- deploy that checkpoint "
+        "as a live model so I can try it out."
+    )
+    assert "get_skill" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "get_skill"]
+    assert any((c["args"] or {}).get("name") == "deploy-checkpoint" for c in calls), calls
+
+
+def test_get_skill_called_for_manage_models(chat):
+    result = chat("Scale mocklm down to zero, I'm not using it right now")
+    assert "get_skill" in result["tools_called"], result
+    calls = [c for c in result["tool_calls"] if c["name"] == "get_skill"]
+    assert any((c["args"] or {}).get("name") == "manage-models" for c in calls), calls
+
+
 def test_dreamzero_training_data_grounded_in_droid(chat):
     """A pure factual question about a model's training data (no search/
     pull/validate action involved) should still trigger the datasets skill

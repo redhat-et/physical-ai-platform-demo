@@ -27,6 +27,12 @@ from platform_agent.tools.finetune import (
     get_finetune_run_status,
     list_finetune_runs,
 )
+from platform_agent.tools.checkpoint_deploy import (
+    deploy_checkpoint_model,
+    get_checkpoint_deployment_status,
+    takedown_checkpoint_model,
+    list_checkpoint_deployments,
+)
 from platform_agent.tools.skills import get_skill, skills_index
 
 SYSTEM_PROMPT = (
@@ -58,6 +64,10 @@ TOOLS = [
     submit_finetune_run,
     get_finetune_run_status,
     list_finetune_runs,
+    deploy_checkpoint_model,
+    get_checkpoint_deployment_status,
+    takedown_checkpoint_model,
+    list_checkpoint_deployments,
     get_skill,
 ]
 

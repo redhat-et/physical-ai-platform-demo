@@ -36,12 +36,26 @@ def test_parse_skill_file_missing_required_field(missing_field):
 
 def test_load_skills_returns_expected_names():
     skills = _load_skills()
-    assert set(skills.keys()) == {"deploy-model", "datasets", "fine-tuning", "new-model-runtime"}
+    assert set(skills.keys()) == {
+        "deploy-model",
+        "datasets",
+        "fine-tuning",
+        "new-model-runtime",
+        "manage-models",
+        "deploy-checkpoint",
+    }
 
 
 def test_skills_index_lists_all_skills():
     index = skills_index()
-    for name in ("deploy-model", "datasets", "fine-tuning", "new-model-runtime"):
+    for name in (
+        "deploy-model",
+        "datasets",
+        "fine-tuning",
+        "new-model-runtime",
+        "manage-models",
+        "deploy-checkpoint",
+    ):
         assert name in index
 
 
