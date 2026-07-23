@@ -24,6 +24,69 @@ existing openpi-runtime ServingRuntime as-is (platform/base/models/pi05/
 servingruntime.yaml) -- it already just loads whatever's mounted at
 /mnt/models, so no new runtime is needed, only a new storageUri.
 
+Confirmed live against a real fine-tuned checkpoint: a lerobot-train
+checkpoint's model.safetensors is NOT directly loadable by openpi-runtime's
+native server as-is, despite finetune_recipes.py's docstring claiming zero
+conversion is needed -- that claim holds for file *layout* (config.json +
+model.safetensors + processor jsons) but not for the state-dict *key names*
+inside model.safetensors. lerobot-train's PreTrainedPolicy.save_pretrained()
+serializes the whole PI05Policy wrapper object (self.model = PI05Pytorch(...)
+internally), so every key comes out prefixed "model." -- fine for LeRobot's
+own symmetric from_pretrained() round-trip (which is what finetune_recipes.py's
+own eval stage uses), but openpi-runtime's native loader
+(train_config.model.load_pytorch -> safetensors.torch.load_model) loads
+directly into a bare, unwrapped PI0Pytorch instance and needs unprefixed keys,
+matching how the original lerobot/pi05_base HF checkpoint happens to be
+exported. There's no lerobot-train flag to skip this -- the wrapper-object
+serialization is inherent to how PreTrainedPolicy.save_pretrained() works for
+every LeRobot policy type. _rewrite_checkpoint_keys below fixes this in the
+import Job, entirely downstream of the fine-tuning pipeline: strips the
+"model." prefix from every key, and drops the one tied embedding weight
+(paligemma's language_model.embed_tokens.weight, tied to its output
+embedding) that has no corresponding parameter in the bare PI0Pytorch module
+and shows up as an extra "unexpected key" otherwise -- both confirmed via the
+actual missing/unexpected key diff safetensors.torch.load_model raised
+against a real checkpoint. Done via stdlib struct+json only (no safetensors/
+torch dependency needed in the python:3.11-slim import container): rebuilds
+the whole file with a freshly-sized compact header and the data section
+rewritten by streaming only the kept tensors' byte ranges across in order,
+skipping the dropped one. An in-place header-only patch (padding the
+rewritten header to the original's exact byte length, leaving the data
+section untouched) was the first approach tried, but safetensors' own
+deserializer validates that data_offsets tile the data section contiguously
+with no gaps -- confirmed live that leaving a dropped tensor's bytes in
+place raises SafetensorError: InvalidOffset, so the data section has to be
+recompacted too, not just the header.
+
+The embed_tokens.weight drop is confirmed correct, not just an empirical
+guess: LeRobot's own PI05Policy._fix_pytorch_state_dict_keys (which converts
+the OPPOSITE direction, openpi -> lerobot) reveals why -- PaliGemma ties its
+input embedding and output head to one parameter, so openpi's checkpoint
+only ever stores lm_head.weight. LeRobot's module structure doesn't
+implement that tying in code, so LeRobot's own loader clones lm_head.weight's
+value into an extra embed_tokens.weight key to satisfy its own strict
+loading. Going the reverse direction, dropping that same redundant key
+(rather than the tied lm_head.weight itself) is the correct inverse of that
+same operation. Confirmed independently: several open LeRobot GitHub issues
+(#2208, #2307, #2119) report this exact key as a known, unresolved gap in
+LeRobot's own remapper -- a real upstream incompatibility, not something
+specific to this platform.
+
+Also confirmed live: openpi-runtime's server separately needs
+assets/<asset_id>/norm_stats.json (normalization stats), which lerobot-train
+checkpoints don't produce at all -- LeRobot stores its own fitted normalizer
+differently, inside policy_preprocessor_step_3_normalizer_processor.safetensors.
+Rather than reverse-engineering that into openpi's norm_stats.json schema,
+this reuses the base pi05_droid checkpoint's own norm_stats.json (same GCS
+URL platform/base/models/pi05/model-download-job.yaml already fetches for
+the base model) -- confirmed this is openpi's own documented, intended
+mechanism for exactly this case (AssetsConfig's assets_dir/asset_id fields
+are explicitly meant to "load assets from a different checkpoint or
+centralized location" when fine-tuning on the same base robot/dataset
+family), not an approximation. This fine-tuning run's own TrainConfig
+(logged at serve time) confirms its asset_id is 'droid', same as the base
+model's.
+
 Only 'pi05' is supported, same restriction as finetune_recipes.get_recipe --
 this only makes sense once a second fine-tuning recipe exists.
 """
@@ -40,6 +103,24 @@ from platform_agent.tools.models import _live_pod_status
 CHECKPOINT_DEPLOYMENT_LABEL = "physical-ai.io/checkpoint-deployment"
 CHECKPOINT_EXPORT_PORT = 8080
 EXPORT_JOB_TIMEOUT_SECONDS = 900  # safety net in case the import side never shows up
+
+# lerobot-train's PreTrainedPolicy.save_pretrained() serializes the whole
+# PI05Policy wrapper (self.model = PI05Pytorch(...)), so every weight key
+# comes out prefixed "model." -- openpi-runtime's native loader needs the
+# bare, unprefixed keys instead. See this module's docstring for the full
+# story; both the prefix and this one dropped key were confirmed against a
+# real checkpoint's actual safetensors.torch.load_model error.
+CHECKPOINT_KEY_PREFIX = "model."
+CHECKPOINT_TIED_KEYS_TO_DROP = (
+    "paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight",
+)
+
+# Same URL platform/base/models/pi05/model-download-job.yaml fetches for the
+# base model -- reused here rather than derived from this fine-tuning run's
+# own dataset, since that's openpi's own documented mechanism for exactly
+# this case. See this module's docstring for why.
+NORM_STATS_URL = "https://storage.googleapis.com/openpi-assets/checkpoints/pi05_droid/assets/droid/norm_stats.json"
+NORM_STATS_ASSET_PATH = "assets/droid/norm_stats.json"
 
 _SUPPORTED_MODELS = ("pi05",)
 
@@ -305,13 +386,20 @@ def _start_import_job(batch_api, exp_name: str, isvc_name: str, export_pod_ip: s
     import_script = f"""\
 set -e
 python3 << 'PYEOF'
+import glob
+import json
 import os
 import re
+import struct
 import urllib.parse
 import urllib.request
 
 BASE_URL = "{base_url}"
 DEST_DIR = "/mnt/models"
+KEY_PREFIX = {CHECKPOINT_KEY_PREFIX!r}
+TIED_KEYS_TO_DROP = {CHECKPOINT_TIED_KEYS_TO_DROP!r}
+NORM_STATS_URL = {NORM_STATS_URL!r}
+NORM_STATS_ASSET_PATH = {NORM_STATS_ASSET_PATH!r}
 
 
 def crawl(url, dest):
@@ -331,7 +419,90 @@ def crawl(url, dest):
             urllib.request.urlretrieve(child_url, child_dest)
 
 
+def rewrite_checkpoint_keys(path):
+    # Strips lerobot-train's "model." wrapper prefix and drops one tied
+    # embedding weight that isn't a separate parameter in openpi-runtime's
+    # bare PI0Pytorch module (both confirmed live against a real checkpoint's
+    # actual load errors). Dropping a tensor entry from the header alone
+    # isn't enough -- safetensors' own deserializer validates that
+    # data_offsets tile the data section contiguously with no gaps
+    # (confirmed live: leaving the dropped tensor's bytes in place raised
+    # SafetensorError: InvalidOffset), so this rebuilds the whole file:
+    # a fresh compact header with recomputed offsets, and the data section
+    # rewritten by streaming only the KEPT tensors' byte ranges across in
+    # their original order, skipping the dropped one entirely.
+    with open(path, "rb") as f:
+        header_len = struct.unpack("<Q", f.read(8))[0]
+        header = json.loads(f.read(header_len))
+    data_start = 8 + header_len
+
+    metadata = header.pop("__metadata__", None)
+    changed = False
+    entries = []
+    for key, meta in header.items():
+        new_key = key[len(KEY_PREFIX):] if key.startswith(KEY_PREFIX) else key
+        if new_key != key:
+            changed = True
+        if new_key in TIED_KEYS_TO_DROP:
+            changed = True
+            continue
+        entries.append((new_key, meta))
+
+    if not changed:
+        return
+
+    entries.sort(key=lambda item: item[1]["data_offsets"][0])
+
+    new_header = {{}}
+    if metadata is not None:
+        new_header["__metadata__"] = metadata
+    cursor = 0
+    for new_key, meta in entries:
+        start, end = meta["data_offsets"]
+        length = end - start
+        new_header[new_key] = {{"dtype": meta["dtype"], "shape": meta["shape"], "data_offsets": [cursor, cursor + length]}}
+        cursor += length
+
+    # separators=(",", ":") matches safetensors' own compact serialization --
+    # not required for correctness here (the header is freshly sized, not
+    # patched in place), just keeps the file format consistent.
+    new_header_bytes = json.dumps(new_header, separators=(",", ":")).encode("utf-8")
+
+    tmp_path = path + ".rewrite.tmp"
+    chunk_size = 64 * 1024 * 1024
+    with open(path, "rb") as src, open(tmp_path, "wb") as dst:
+        dst.write(struct.pack("<Q", len(new_header_bytes)))
+        dst.write(new_header_bytes)
+        for new_key, meta in entries:
+            start, end = meta["data_offsets"]
+            src.seek(data_start + start)
+            remaining = end - start
+            while remaining > 0:
+                chunk = src.read(min(chunk_size, remaining))
+                if not chunk:
+                    raise RuntimeError(f"unexpected EOF copying tensor {{new_key}} from {{path}}")
+                dst.write(chunk)
+                remaining -= len(chunk)
+
+    os.replace(tmp_path, path)
+    print(f"Rewrote checkpoint keys in {{path}} (stripped '{{KEY_PREFIX}}' prefix, dropped tied keys).")
+
+
+def fetch_norm_stats():
+    # lerobot-train checkpoints don't produce this file at all -- openpi-
+    # runtime's server needs it separately. Reusing the base checkpoint's own
+    # norm_stats.json (see this module's docstring for why that's correct,
+    # not an approximation).
+    dest = os.path.join(DEST_DIR, NORM_STATS_ASSET_PATH)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    urllib.request.urlretrieve(NORM_STATS_URL, dest)
+    print(f"Fetched norm stats to {{dest}}.")
+
+
 crawl(BASE_URL, DEST_DIR)
+for safetensors_path in glob.glob(os.path.join(DEST_DIR, "*.safetensors")):
+    rewrite_checkpoint_keys(safetensors_path)
+fetch_norm_stats()
 print("Checkpoint copy complete.")
 PYEOF
 """
