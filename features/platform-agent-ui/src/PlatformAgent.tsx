@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   PageSection,
   Title,
@@ -27,11 +28,19 @@ const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.open
 const POLL_INTERVAL_MS = 10000;
 const SLOW_WARNING_MS = 8 * 60 * 1000;
 
+const chatTableStyles = `
+  .chat-bubble table { border-collapse: collapse; margin: 0.5rem 0; }
+  .chat-bubble th, .chat-bubble td { padding: 0.25rem 0.75rem; text-align: left; }
+  .chat-bubble thead tr { border-bottom: 1px solid var(--pf-t--global--border--color--default); }
+`;
+
 const PlatformAgent: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const [chatHeight, setChatHeight] = useState("calc(100vh - 130px)");
 
   const [modelState, setModelState] = useState<ModelGateState | "ready">("checking");
   const [modelDetail, setModelDetail] = useState("");
@@ -88,6 +97,19 @@ const PlatformAgent: React.FC = () => {
     }
     checkModelStatus();
   };
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    const update = () => {
+      const top = el.getBoundingClientRect().top;
+      setChatHeight(`calc(100vh - ${top + 16}px)`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [modelState]);
 
   const [statusText, setStatusText] = useState("");
 
@@ -175,6 +197,7 @@ const PlatformAgent: React.FC = () => {
 
   return (
     <>
+      <style>{chatTableStyles}</style>
       <PageSection>
         <Flex
           direction={{ default: "row" }}
@@ -205,8 +228,8 @@ const PlatformAgent: React.FC = () => {
       )}
 
       {modelState === "ready" && (
-      <PageSection padding={{ default: "noPadding" }} isFilled>
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "0 1rem 1rem" }}>
+      <PageSection padding={{ default: "noPadding" }}>
+        <div ref={chatRef} style={{ display: "flex", flexDirection: "column", height: chatHeight, padding: "0 1rem 1rem" }}>
           <Panel
             variant="bordered"
             style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
@@ -236,6 +259,7 @@ const PlatformAgent: React.FC = () => {
                     }}
                   >
                     <div
+                      className={msg.role === "assistant" ? "chat-bubble" : undefined}
                       style={{
                         maxWidth: "70%",
                         padding: "0.75rem 1rem",
@@ -258,7 +282,7 @@ const PlatformAgent: React.FC = () => {
                         </div>
                       )}
                       {msg.role === "assistant" ? (
-                        <Markdown>{msg.content}</Markdown>
+                        <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                       ) : (
                         msg.content
                       )}
