@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   PageSection,
   Title,
@@ -32,6 +33,8 @@ const PlatformAgent: React.FC = () => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const [chatHeight, setChatHeight] = useState("calc(100vh - 130px)");
 
   const [modelState, setModelState] = useState<ModelGateState | "ready">("checking");
   const [modelDetail, setModelDetail] = useState("");
@@ -88,6 +91,19 @@ const PlatformAgent: React.FC = () => {
     }
     checkModelStatus();
   };
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    const update = () => {
+      const top = el.getBoundingClientRect().top;
+      setChatHeight(`calc(100vh - ${top + 16}px)`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [modelState]);
 
   const [statusText, setStatusText] = useState("");
 
@@ -205,8 +221,8 @@ const PlatformAgent: React.FC = () => {
       )}
 
       {modelState === "ready" && (
-      <PageSection padding={{ default: "noPadding" }} isFilled>
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "0 1rem 1rem" }}>
+      <PageSection padding={{ default: "noPadding" }}>
+        <div ref={chatRef} style={{ display: "flex", flexDirection: "column", height: chatHeight, padding: "0 1rem 1rem" }}>
           <Panel
             variant="bordered"
             style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
@@ -258,7 +274,7 @@ const PlatformAgent: React.FC = () => {
                         </div>
                       )}
                       {msg.role === "assistant" ? (
-                        <Markdown>{msg.content}</Markdown>
+                        <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                       ) : (
                         msg.content
                       )}
