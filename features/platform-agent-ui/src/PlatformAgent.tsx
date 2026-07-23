@@ -28,6 +28,12 @@ const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.open
 const POLL_INTERVAL_MS = 10000;
 const SLOW_WARNING_MS = 8 * 60 * 1000;
 
+const chatTableStyles = `
+  .chat-bubble table { border-collapse: collapse; margin: 0.5rem 0; }
+  .chat-bubble th, .chat-bubble td { padding: 0.25rem 0.75rem; text-align: left; }
+  .chat-bubble thead tr { border-bottom: 1px solid var(--pf-t--global--border--color--default); }
+`;
+
 const PlatformAgent: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -191,6 +197,7 @@ const PlatformAgent: React.FC = () => {
 
   return (
     <>
+      <style>{chatTableStyles}</style>
       <PageSection>
         <Flex
           direction={{ default: "row" }}
@@ -252,6 +259,7 @@ const PlatformAgent: React.FC = () => {
                     }}
                   >
                     <div
+                      className={msg.role === "assistant" ? "chat-bubble" : undefined}
                       style={{
                         maxWidth: "70%",
                         padding: "0.75rem 1rem",
