@@ -20,6 +20,8 @@ from platform_agent.tools.datasets import (
     validate_lerobot_dataset,
     pull_dataset,
     get_dataset_job_status,
+    convert_dataset_to_v3,
+    get_dataset_conversion_status,
     list_staged_datasets,
 )
 from platform_agent.tools.finetune import (
@@ -60,6 +62,8 @@ TOOLS = [
     validate_lerobot_dataset,
     pull_dataset,
     get_dataset_job_status,
+    convert_dataset_to_v3,
+    get_dataset_conversion_status,
     list_staged_datasets,
     submit_finetune_run,
     get_finetune_run_status,

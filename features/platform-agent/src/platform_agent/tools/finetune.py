@@ -2,8 +2,14 @@ from langchain_core.tools import tool
 from kubernetes import client
 
 from platform_agent.config import settings
-from platform_agent.tools.datasets import DATASET_REPO_LABEL
-from platform_agent.tools.finetune_pipeline import get_finetune_eval_metrics, get_pipeline_run_status, submit_pipeline_run
+from platform_agent.tools.datasets import dataset_repo_id_from_pvc
+from platform_agent.tools.finetune_pipeline import (
+    get_finetune_eval_metrics,
+    get_pipeline_run_state,
+    get_pipeline_run_status,
+    log_finetune_run_params,
+    submit_pipeline_run,
+)
 from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe
 
 FINETUNE_EXP_LABEL = "physical-ai.io/finetune-exp"
@@ -37,6 +43,11 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
     own (no manual "create the next stage" step needed); call
     get_finetune_run_status afterward to check progress.
 
+    Resubmitting under an exp_name that already has a run is normally
+    refused -- but if that prior run's state is FAILED (e.g. after fixing a
+    dataset-format error with convert_dataset_to_v3), this proceeds and
+    reuses the same checkpoint PVC, overwriting the failed attempt's output.
+
     Args:
         dataset_pvc_name: The PVC name of an already-pull_dataset-staged
             dataset (e.g. 'dataset-my-droid-set-pvc').
@@ -55,13 +66,12 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
             return f"Dataset PVC '{dataset_pvc_name}' not found in '{settings.datasets_namespace}'. Pull it first with pull_dataset."
         return f"Could not read PVC '{dataset_pvc_name}': {e.reason}"
 
-    dataset_repo_label = (pvc.metadata.labels or {}).get(DATASET_REPO_LABEL)
-    if not dataset_repo_label:
+    dataset_repo_id = dataset_repo_id_from_pvc(pvc)
+    if not dataset_repo_id:
         return f"PVC '{dataset_pvc_name}' isn't labeled as a dataset cache — was it created by pull_dataset?"
-    dataset_repo_id = dataset_repo_label.replace("--", "/")
 
     try:
-        stages = get_recipe(model_name, dataset_repo_id, exp_name)
+        stages, recipe_params = get_recipe(model_name, dataset_repo_id, exp_name)
     except ValueError as e:
         return str(e)
 
@@ -87,11 +97,20 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
             name=checkpoint_pvc_name, namespace=settings.datasets_namespace
         )
         existing_run_id = (existing_pvc.metadata.annotations or {}).get(FINETUNE_RUN_ID_ANNOTATION)
-        if existing_run_id:
+        if existing_run_id and get_pipeline_run_state(existing_run_id) != "FAILED":
             return (
                 f"A fine-tuning run named '{exp_name}' already exists (pipeline run "
                 f"'{existing_run_id}'). Check get_finetune_run_status('{exp_name}')."
             )
+        # existing_run_id's prior run reached the terminal FAILED state (or
+        # was never recorded at all) -- allow retrying under the same
+        # exp_name. Reuse the checkpoint PVC as-is rather than deleting and
+        # recreating it: the failed run's stage pods are deliberately left
+        # running for debugging (see submit_pipeline_run's ttl_seconds
+        # docstring), so they'd still be mounting this PVC and a delete would
+        # just hang in Terminating behind the pvc-protection finalizer.
+        # lerobot-train's own --output_dir semantics already overwrite a
+        # prior run's contents on a fresh run, so this is safe.
 
     try:
         run_id, dashboard_url = submit_pipeline_run(
@@ -105,6 +124,8 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
         )
     except Exception as e:
         return f"Failed to submit fine-tuning pipeline: {e}"
+
+    log_finetune_run_params(exp_name, recipe_params, kfp_run_id=run_id)
 
     try:
         core_api.patch_namespaced_persistent_volume_claim(
@@ -132,9 +153,12 @@ def get_finetune_run_status(exp_name: str) -> str:
     pipeline advances through its own stages on its own -- this is a
     read-only status check, not something that needs to be called
     repeatedly to make progress happen (unlike the old raw-Job version).
-    Also includes mean and per-episode action-MSE eval results once the
-    evaluate stage has logged them to MLflow -- omitted if that stage
-    hasn't run yet or hasn't finished.
+    Also includes the resolved recipe (dataset, step count, batch size,
+    episode split, ...) logged to MLflow at submission time, plus mean and
+    per-episode action-MSE eval results once the evaluate stage has logged
+    them there too -- eval results are omitted if that stage hasn't run yet
+    or hasn't finished; the recipe itself is omitted only if the
+    submission-time MLflow logging failed.
 
     Args:
         exp_name: The exp_name passed to submit_finetune_run.
@@ -163,6 +187,10 @@ def get_finetune_run_status(exp_name: str) -> str:
 
     eval_results = get_finetune_eval_metrics(exp_name)
     if eval_results:
+        recipe_params = eval_results.get("params")
+        if recipe_params:
+            result += "\nRecipe: " + ", ".join(f"{k}={v}" for k, v in recipe_params.items())
+
         metrics = eval_results["metrics"]
         per_episode = sorted(
             ((k[len("action_mse_ep") :], v) for k, v in metrics.items() if k.startswith("action_mse_ep")),

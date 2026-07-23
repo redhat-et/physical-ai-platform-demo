@@ -39,6 +39,11 @@ PI05_PRETRAINED_PATH = "lerobot/pi05_base"
 # express real uncertainty/caveats a Python dict can't, and shouldn't imply
 # machine-checked ground truth it isn't.
 
+# Shared between _train_script's actual --policy.normalization_mapping flag
+# and get_recipe's logged params -- a single source of truth so the two can't
+# drift apart.
+NORMALIZATION_MAPPING = '{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'
+
 
 def dataset_mount_path(dataset_repo_id: str) -> str:
     """Where a dataset PVC is mounted in every finetune stage's pod -- single
@@ -147,7 +152,7 @@ lerobot-train \\
     --policy.gradient_checkpointing=true \\
     --policy.dtype=bfloat16 \\
     --policy.device=cuda \\
-    --policy.normalization_mapping='{{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}}' \\
+    --policy.normalization_mapping='{NORMALIZATION_MAPPING}' \\
     --batch_size={batch_size} \\
     --steps={num_train_steps} \\
     --output_dir={CHECKPOINT_MOUNT_PATH}/{exp_name} \\
@@ -261,11 +266,30 @@ try:
         )["experiment_id"]
 
     now_ms = int(time.time() * 1000)
-    run_id = _mlflow_request(
+
+    # submit_finetune_run's log_finetune_run_params already created this run
+    # (run_name=EXP_NAME) at submission time to record the recipe params
+    # before training even started -- find it and append metrics there
+    # instead of creating a second run. Only create one here as a fallback,
+    # e.g. if that submission-time logging failed.
+    search_result = _mlflow_request(
         "POST",
-        "/api/2.0/mlflow/runs/create",
-        {"experiment_id": experiment_id, "run_name": EXP_NAME, "start_time": now_ms},
-    )["run"]["info"]["run_id"]
+        "/api/2.0/mlflow/runs/search",
+        {
+            "experiment_ids": [experiment_id],
+            "filter": f"tags.\"mlflow.runName\" = '{EXP_NAME}'",
+            "max_results": 1,
+        },
+    )
+    existing_runs = search_result.get("runs", [])
+    if existing_runs:
+        run_id = existing_runs[0]["info"]["run_id"]
+    else:
+        run_id = _mlflow_request(
+            "POST",
+            "/api/2.0/mlflow/runs/create",
+            {"experiment_id": experiment_id, "run_name": EXP_NAME, "start_time": now_ms},
+        )["run"]["info"]["run_id"]
 
     metrics = [{"key": "mean_action_mse", "value": mean_mse, "timestamp": now_ms, "step": 0}]
     for ep_idx, err in zip(held_out, errors):
@@ -274,11 +298,7 @@ try:
     _mlflow_request(
         "POST",
         "/api/2.0/mlflow/runs/log-batch",
-        {
-            "run_id": run_id,
-            "metrics": metrics,
-            "tags": [{"key": "dataset_repo_id", "value": DATASET_REPO_ID}],
-        },
+        {"run_id": run_id, "metrics": metrics},
     )
     _mlflow_request(
         "POST",
@@ -294,8 +314,14 @@ cd /tmp && python3 run_eval.py
     return eval_script + mlflow_logging
 
 
-def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dict]:
-    """Returns the ordered stage list for a model's fine-tuning recipe.
+def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> tuple[list[dict], dict[str, str]]:
+    """Returns the ordered stage list for a model's fine-tuning recipe, plus
+    the resolved recipe as a flat dict of MLflow-safe (string-valued) params
+    -- submit_finetune_run logs this to MLflow at submission time so a run's
+    exact provenance (dataset, step count, batch size, episode split, ...) is
+    recoverable later even if these hardcoded values change in a future
+    commit, or the run fails before the evaluate stage would otherwise be the
+    only thing writing to MLflow at all.
 
     Each stage: name, image, command (list, passed to bash -c), gpu (int
     GPUs requested; 0 means no nodeSelector/GPU resource added).
@@ -321,8 +347,9 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
     # end to end without tying up a shared GPU for hours on every dry run.
     # Bump back up for a real training run meant to produce a usable policy.
     NUM_TRAIN_STEPS = 50
+    BATCH_SIZE = 32
 
-    return [
+    stages = [
         {
             "name": "train",
             "image": LEROBOT_IMAGE,
@@ -331,7 +358,7 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
                 "/bin/bash",
                 "-c",
                 _train_script(
-                    dataset_repo_id, exp_name, num_train_steps=NUM_TRAIN_STEPS, batch_size=32, train_episodes=train_episodes
+                    dataset_repo_id, exp_name, num_train_steps=NUM_TRAIN_STEPS, batch_size=BATCH_SIZE, train_episodes=train_episodes
                 ),
             ],
         },
@@ -342,3 +369,19 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
             "command": ["/bin/bash", "-c", _evaluate_script(dataset_repo_id, exp_name, eval_episodes=eval_episodes)],
         },
     ]
+
+    params = {
+        "model_name": model_name,
+        "dataset_repo_id": dataset_repo_id,
+        "pretrained_path": PI05_PRETRAINED_PATH,
+        "num_train_steps": str(NUM_TRAIN_STEPS),
+        "batch_size": str(BATCH_SIZE),
+        "normalization_mapping": NORMALIZATION_MAPPING,
+        "train_expert_only": "true",
+        "total_episodes": str(info["total_episodes"]),
+        "num_train_episodes": str(len(train_episodes)),
+        "num_eval_episodes": str(len(eval_episodes)),
+        "eval_episodes": str(eval_episodes),
+    }
+
+    return stages, params

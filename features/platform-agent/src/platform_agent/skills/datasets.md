@@ -70,10 +70,10 @@ Robot Interaction Dataset, droid-dataset.github.io / RSS 2024):
    instead of pi0.5's stock QUANTILES default. A candidate missing
    precomputed q01/q99 stats is not disqualified here.
 6. **Format**: requires LeRobot v3.0, not v2.x — convert with
-   `python -m lerobot.datasets.v30.convert_dataset_v21_to_v30` or pin an
-   older lerobot package. (An earlier openpi-based recipe on this
-   platform needed v2.x instead — tied to the training mechanism, not
-   fixed.) Feature key spelling varies across rehosts (e.g.
+   `python -m lerobot.scripts.convert_dataset_v21_to_v30` or pin an
+   older lerobot package. (Confirmed live against `huggingface/lerobot-gpu:latest`:
+   `lerobot.datasets.v30.convert_dataset_v21_to_v30` no longer exists in that
+   image -- the module moved to `lerobot.scripts`.) Feature key spelling varies across rehosts (e.g.
    `observation.image.X` vs `observation.images.X`) — read the actual
    Features list, don't assume a name.
 7. **Annotations**: pi0.5 is language-conditioned — an episode needs a
