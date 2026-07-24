@@ -7,7 +7,8 @@ DATASETS — in order:
 1. list_staged_datasets first — don't re-pull an already-staged dataset.
 2. For a named robot-policy model, search using the facts in APPLYING THE CHECKLIST below, not the model's own name. 'pi05' as a query returns any embodiment anyone used with it; 'droid' + expected_robot_type='franka' returns what the recipe actually needs.
 3. get_dataset_info for size, license, gated status, and schema. See DATASET COMPATIBILITY CHECKLIST — this is one dimension, not the whole picture.
-4. validate_lerobot_dataset(dataset_repo_id=..., expected_exterior_cameras=..., expected_wrist_cameras=..., expected_action_dim=...) using the values in APPLYING THE CHECKLIST — read them fresh each time, don't rely on memory. Never invent expected_feature_keys; omit it and read the schema yourself.
+4. validate_lerobot_dataset(dataset_repo_id=..., expected_exterior_cameras=..., expected_wrist_cameras=..., expected_action_dim=...) using the values in APPLYING THE CHECKLIST — read them fresh each time, every single call, even ones later in the same conversation. NEVER invent expected_action_dim/expected_exterior_cameras/expected_wrist_cameras/expected_feature_keys from memory or general pi0.5/DROID knowledge -- these are caller-supplied inputs the tool trusts verbatim and echoes back in its verdict, so a wrong number you supplied produces a confident-looking but false "INCOMPATIBLE" against a dataset that may actually be fine. Omit expected_feature_keys entirely and read the schema yourself if you don't have a real one.
+4a. A 0 count for expected_exterior_cameras/expected_wrist_cameras does NOT mean the dataset has no camera there -- validate_lerobot_dataset counts by substring match on the key name ('exterior'/'wrist'), and plenty of real datasets name cameras something else entirely, so the count can come back 0/0 even when an equivalent camera is genuinely present under a different name. Before reporting a camera-count mismatch as an incompatibility, always read the raw Features list the same call already returned and check by eye whether an image/video feature just has a different name -- don't take the count alone as the verdict.
 5. EXCEPTION TO RULE 1: never call pull_dataset same-turn as get_dataset_info. Show size/license/gated status, get explicit go-ahead first.
 6. After pulling, get_dataset_job_status to confirm success before saying the dataset is ready. A repo with a very large file count (thousands-plus -- e.g. one video+parquet per episode) can exhaust Hugging Face's account-tier API rate limit (1000 requests/5min) partway through: huggingface_hub resolves each file individually before downloading it, so file count, not GB, is what matters. pull_dataset now retries snapshot_download a few times (verifying actual local file count against the repo's real file count each time, since snapshot_download can itself silently return the existing local_dir instead of raising when it can't reach the repo) and, if it's still failing, falls back to a plain `git clone` + `git lfs pull` -- git-lfs resolves object URLs via a batch API instead of one request per file, so it isn't subject to the same per-file rate limit (confirmed live: 18min/zero 429s vs. an ~8h throttled crawl for a ~53k-file repo). Still worth spot-checking actual file counts on the PVC before trusting "succeeded" for anything unusual, but the common case is now self-healing.
 7. If validate_lerobot_dataset (or get_dataset_info) fails to find meta/info.json at the repo root ("Could not fetch meta/info.json ... Is this actually a LeRobot-format dataset?"), don't conclude the repo isn't LeRobot-format yet — some repos bundle several independent LeRobot datasets as subfolders instead of one dataset per repo. Check get_dataset_file('README.md') or the repo's file listing for subfolder names, then retry with the subfolder appended directly to dataset_repo_id (e.g. '<org>/<repo>/<subfolder>'). pull_dataset still takes just the real two-segment repo id; the subfolder choice comes back at fine-tuning time via submit_finetune_run's dataset_subset (see the fine-tuning skill).
@@ -70,13 +71,13 @@ Robot Interaction Dataset, droid-dataset.github.io / RSS 2024):
    `--policy.normalization_mapping='{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'`
    instead of pi0.5's stock QUANTILES default. A candidate missing
    precomputed q01/q99 stats is not disqualified here.
-6. **Format**: requires LeRobot v3.0, not v2.x — convert with
-   `python -m lerobot.scripts.convert_dataset_v21_to_v30` or pin an
-   older lerobot package. (Confirmed live against `huggingface/lerobot-gpu:latest`:
-   `lerobot.datasets.v30.convert_dataset_v21_to_v30` no longer exists in that
-   image -- the module moved to `lerobot.scripts`.) Feature key spelling varies across rehosts (e.g.
-   `observation.image.X` vs `observation.images.X`) — read the actual
-   Features list, don't assume a name.
+6. **Format**: requires LeRobot v3.0, not v2.x. A v2.x `codebase_version` can
+   be converted: pull_dataset it, then call
+   convert_dataset_to_v3(dataset_pvc_name) and check
+   get_dataset_conversion_status (see the fine-tuning skill). Feature key
+   spelling varies across rehosts (e.g. `observation.image.X` vs
+   `observation.images.X`) — read the actual Features list, don't assume a
+   name.
 7. **Annotations**: pi0.5 is language-conditioned — an episode needs a
    real task description, not just a populated field. DROID's official
    annotations cover ~95% of successful episodes, not the ~16,000
