@@ -21,10 +21,14 @@ def test_get_skill_called_for_dataset_search(chat):
     calls = [c for c in result["tool_calls"] if c["name"] == "get_skill"]
     assert any((c["args"] or {}).get("name") == "datasets" for c in calls), calls
     if "search_compatible_lerobot_datasets" in result["tools_called"]:
-        assert (
-            result["tools_called"].index("get_skill")
-            < result["tools_called"].index("search_compatible_lerobot_datasets")
-        ), f"search happened before loading the datasets skill: {result['tools_called']}"
+        datasets_skill_idx = next(
+            i for i, c in enumerate(result["tool_calls"])
+            if c["name"] == "get_skill" and (c["args"] or {}).get("name") == "datasets"
+        )
+        search_idx = result["tools_called"].index("search_compatible_lerobot_datasets")
+        assert datasets_skill_idx < search_idx, (
+            f"search happened before loading the datasets skill: {result['tools_called']}"
+        )
 
 
 def test_get_skill_called_for_finetune_request(chat):

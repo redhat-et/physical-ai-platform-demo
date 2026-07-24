@@ -203,8 +203,11 @@ def test_validate_lerobot_dataset_grounded_before_asserting_incompatible(chat):
     assert "validate_lerobot_dataset" in result["tools_called"], result
     calls = [c for c in result["tool_calls"] if c["name"] == "validate_lerobot_dataset"]
     assert calls, result
-    args = calls[0]["args"] or {}
-    if args.get("expected_feature_keys") or args.get("expected_action_dim"):
+    grounded_criteria_used = any(
+        (c["args"] or {}).get("expected_feature_keys") or (c["args"] or {}).get("expected_action_dim")
+        for c in calls
+    )
+    if grounded_criteria_used:
         skill_calls = [c for c in result["tool_calls"] if c["name"] == "get_skill"]
         assert any((c["args"] or {}).get("name") == "datasets" for c in skill_calls), (
             f"validate_lerobot_dataset was called with expected_* criteria "

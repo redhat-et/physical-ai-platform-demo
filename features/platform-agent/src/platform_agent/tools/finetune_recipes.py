@@ -117,7 +117,7 @@ def _train_script(
     chunk_size: int | None = None,
     n_action_steps: int | None = None,
     empty_cameras: int | None = None,
-) -> str:
+) -> tuple[str, int | None]:
     """Training stage script: runs lerobot-train directly -- a plain CLI, no
     custom Python config-construction shim needed unlike the old openpi-based
     recipe. Uses the MEAN_STD normalization override instead of the
@@ -196,6 +196,11 @@ def _train_script(
     without giving an explicit n_action_steps of their own -- an explicit
     n_action_steps always wins, letting a caller deliberately keep
     replanning more frequent than the prediction horizon.
+
+    Returns (script, effective_n_action_steps) rather than just the script --
+    get_recipe logs the latter into its MLflow params so an auto-capped run's
+    provenance still records the value that actually got passed to
+    lerobot-train, not just whatever the caller (or lack thereof) supplied.
     """
     optional_flags = ""
     if chunk_size is not None:
@@ -208,7 +213,7 @@ def _train_script(
     if empty_cameras is not None:
         optional_flags += f"    --policy.empty_cameras={empty_cameras} \\\n"
 
-    return f"""\
+    script = f"""\
 set -e
 export HOME=/tmp
 export HF_LEROBOT_HOME={DATASET_MOUNT_ROOT}
@@ -230,6 +235,7 @@ lerobot-train \\
     --job_name={exp_name} \\
     --wandb.enable=false
 """
+    return script, effective_n_action_steps
 
 
 def _evaluate_script(dataset_repo_id: str, exp_name: str, eval_episodes: list[int]) -> str:
@@ -449,6 +455,17 @@ def get_recipe(
     NUM_TRAIN_STEPS = 50
     BATCH_SIZE = 32
 
+    train_script, effective_n_action_steps = _train_script(
+        effective_dataset_id,
+        exp_name,
+        num_train_steps=NUM_TRAIN_STEPS,
+        batch_size=BATCH_SIZE,
+        train_episodes=train_episodes,
+        chunk_size=chunk_size,
+        n_action_steps=n_action_steps,
+        empty_cameras=empty_cameras,
+    )
+
     stages = [
         {
             "name": "train",
@@ -457,16 +474,7 @@ def get_recipe(
             "command": [
                 "/bin/bash",
                 "-c",
-                _train_script(
-                    effective_dataset_id,
-                    exp_name,
-                    num_train_steps=NUM_TRAIN_STEPS,
-                    batch_size=BATCH_SIZE,
-                    train_episodes=train_episodes,
-                    chunk_size=chunk_size,
-                    n_action_steps=n_action_steps,
-                    empty_cameras=empty_cameras,
-                ),
+                train_script,
             ],
         },
         {
@@ -498,8 +506,8 @@ def get_recipe(
         params["dataset_subset"] = dataset_subset
     if chunk_size is not None:
         params["chunk_size"] = str(chunk_size)
-    if n_action_steps is not None:
-        params["n_action_steps"] = str(n_action_steps)
+    if effective_n_action_steps is not None:
+        params["n_action_steps"] = str(effective_n_action_steps)
     if empty_cameras is not None:
         params["empty_cameras"] = str(empty_cameras)
 

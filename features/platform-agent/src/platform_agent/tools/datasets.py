@@ -100,6 +100,7 @@ def _fetch_schema_preview(dataset_repo_id: str, config: str | None, split: str) 
 
 
 MAX_DATASET_ROWS_PER_CALL = 20
+MAX_DATASET_ROWS_OUTPUT_CHARS = 20_000
 
 
 @tool
@@ -166,7 +167,10 @@ def get_dataset_rows(
     ]
     for r in rows:
         lines.append(f"  row_idx={r.get('row_idx')}: {r.get('row')}")
-    return "\n".join(lines)
+    out = "\n".join(lines)
+    if len(out) > MAX_DATASET_ROWS_OUTPUT_CHARS:
+        out = out[:MAX_DATASET_ROWS_OUTPUT_CHARS] + "\n... (truncated -- request fewer rows)"
+    return out
 
 
 @tool
@@ -1123,22 +1127,34 @@ export HOME=/tmp
 # nested inside --root, despite it looking that way on an earlier inspection;
 # that turned out to be a retry re-processing an already-converted directory,
 # whose own first move-into-place step swept the previous attempt's stray
-# sibling backup inside too). Move an explicit allowlist of LeRobot's known
-# top-level dataset dirs back up to the PVC's top-level root -- the path
-# every other tool (pull_dataset, finetune_recipes' dataset_mount_path)
-# expects meta/data/videos to live at directly -- then remove both the
-# scratch root and its sibling backup, by the same pod that created them so
-# no cross-pod permission issues doing so.
+# sibling backup inside too).
+#
+# Restore EVERYTHING from the scratch dir back to the PVC root on ANY exit --
+# not just an allowlist of known LeRobot dirs (data/meta/videos), which used
+# to silently rm -rf any other top-level file (README.md, .gitattributes,
+# ...) along with the scratch dir on every successful conversion. This same
+# trap also fires when the conversion itself FAILS (set -e triggers the EXIT
+# trap on any nonzero exit): it falls back to lerobot's own <root>_old
+# pre-conversion backup if the scratch dir ends up empty, so the PVC is left
+# with a working dataset at the root path every other tool expects, instead
+# of stuck nested and unusable with no repair tool available.
+trap '
+    set +e
+    restore_from=/mnt/dataset/_v21_orig
+    if [ ! -d "$restore_from" ] || [ -z "$(ls -A "$restore_from" 2>/dev/null)" ]; then
+        restore_from=/mnt/dataset/_v21_orig_old
+    fi
+    if [ -d "$restore_from" ]; then
+        find "$restore_from" -mindepth 1 -maxdepth 1 -exec mv {{}} /mnt/dataset/ \\;
+    fi
+    rm -rf /mnt/dataset/_v21_orig /mnt/dataset/_v21_orig_old
+' EXIT
 mkdir -p /mnt/dataset/_v21_orig
 find /mnt/dataset -mindepth 1 -maxdepth 1 ! -name _v21_orig -exec mv {{}} /mnt/dataset/_v21_orig/ \\;
 python -m lerobot.scripts.convert_dataset_v21_to_v30 \\
     --repo-id={dataset_repo_id} \\
     --root=/mnt/dataset/_v21_orig \\
     --push-to-hub=false
-for d in data meta videos; do
-    [ -d "/mnt/dataset/_v21_orig/$d" ] && mv "/mnt/dataset/_v21_orig/$d" /mnt/dataset/
-done
-rm -rf /mnt/dataset/_v21_orig /mnt/dataset/_v21_orig_old
 """.format(dataset_repo_id=dataset_repo_id)
 
     try:
