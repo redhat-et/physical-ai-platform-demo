@@ -437,6 +437,23 @@ def validate_dataset_schema(
 LEROBOT_COMPATIBLE_VERSION_PREFIX = "v3"
 
 
+def split_dataset_repo_id(dataset_repo_id: str) -> tuple[str, str | None]:
+    """A real Hugging Face repo id is always exactly two slash-separated
+    segments (org/name) -- anything past that in dataset_repo_id is a
+    subfolder within the repo, not part of the id, and needs splitting back
+    off before any call that actually hits the Hub API (e.g.
+    hf_hub_download). Exists because some repos (e.g. nvidia's
+    PhysicalAI-Robotics-Manipulation-SingleArm) bundle several independent
+    LeRobot datasets as subfolders of one repo instead of one dataset per
+    repo -- confirmed live via the Hub API's file listing: each subfolder
+    has its own meta/info.json, not the repo root.
+    """
+    parts = dataset_repo_id.split("/", 2)
+    if len(parts) <= 2:
+        return dataset_repo_id, None
+    return "/".join(parts[:2]), parts[2]
+
+
 def _fetch_lerobot_info(dataset_repo_id: str) -> dict | str:
     """Shared helper for validate_lerobot_dataset/search_compatible_lerobot_datasets.
     Returns the parsed meta/info.json, or an error string.
@@ -444,10 +461,13 @@ def _fetch_lerobot_info(dataset_repo_id: str) -> dict | str:
     from huggingface_hub import hf_hub_download
     import json
 
+    real_repo_id, subset = split_dataset_repo_id(dataset_repo_id)
+    filename = f"{subset}/meta/info.json" if subset else "meta/info.json"
+
     try:
-        info_path = hf_hub_download(repo_id=dataset_repo_id, repo_type="dataset", filename="meta/info.json")
+        info_path = hf_hub_download(repo_id=real_repo_id, repo_type="dataset", filename=filename)
     except Exception as e:
-        return f"Could not fetch meta/info.json for '{dataset_repo_id}': {e}. Is this actually a LeRobot-format dataset?"
+        return f"Could not fetch {filename} for '{dataset_repo_id}': {e}. Is this actually a LeRobot-format dataset?"
 
     with open(info_path) as f:
         return json.load(f)
@@ -735,19 +755,46 @@ def pull_dataset(dataset_repo_id: str, dataset_name: str, pvc_size_gb: int = 50)
     speculatively or as the first response to "find me a dataset for X".
 
     Downloads the entire dataset repo (config/subset selection happens at
-    training time, not download time). Creates a PVC and a Kubernetes Job in
+    fine-tuning time via submit_finetune_run's dataset_subset, not download
+    time) -- including for a repo that bundles several independent LeRobot
+    datasets as subfolders rather than one dataset per repo (e.g. nvidia's
+    PhysicalAI-Robotics-Manipulation-SingleArm: panda-stack-platforms,
+    panda-open-drawer, ... each in their own subfolder). Pulling once here
+    and picking a subset per fine-tuning run means one PVC serves every
+    subset in the repo, instead of needing a separate PVC (and a separate,
+    redundant download) per subset. Creates a PVC and a Kubernetes Job in
     the datasets namespace that runs huggingface_hub.snapshot_download.
     Check progress with get_dataset_job_status afterward — this tool returns
     as soon as the Job is created, not once the download finishes.
 
+    Falls back to a plain `git clone` + `git lfs pull` of the same repo if
+    snapshot_download keeps hitting HTTP 429 after a few retries (confirmed
+    live: a repo subset with ~53k files exhausted the 1000 req/5min
+    authenticated rate limit after only ~6.6k files, since snapshot_download
+    makes a HEAD+GET pair per file; git-lfs instead fetches object URLs via
+    the LFS batch API in ~100-object batches, cutting total requests by
+    ~2 orders of magnitude -- the same fallback finished in 18 minutes with
+    zero 429s where snapshot_download's steady-state throttled rate would
+    have taken ~8 hours). The fallback clones into a scratch dir and copies
+    the checked-out tree into local_dir, so the end result is
+    indistinguishable from a snapshot_download-produced PVC either way.
+
     Args:
         dataset_repo_id: Hugging Face dataset repo id to download, e.g.
-            'GEAR-Dreams/DreamZero-DROID'.
+            'GEAR-Dreams/DreamZero-DROID'. Always the real two-segment
+            org/name id -- never include a subfolder here, even for a
+            multi-subset repo; pick the subset later via
+            submit_finetune_run's dataset_subset instead.
         dataset_name: Short name for this staged dataset, lowercase
             alphanumeric and hyphens (used as the K8s resource name prefix).
         pvc_size_gb: Size of the PersistentVolumeClaim in GB. Should
-            comfortably exceed the size reported by get_dataset_info.
+            comfortably exceed the size reported by get_dataset_info for
+            the *whole* repo (all subsets combined, for a multi-subset one).
     """
+    # Deferred import: finetune_recipes imports _fetch_lerobot_info from this
+    # module, so importing it back at module load time would be circular.
+    from platform_agent.tools.finetune_recipes import LEROBOT_IMAGE
+
     core_api, batch_api = _get_clients()
     pvc_name = f"dataset-{dataset_name}-pvc"
     job_name = f"download-{dataset_name}-dataset"
@@ -771,21 +818,118 @@ def pull_dataset(dataset_repo_id: str, dataset_name: str, pvc_size_gb: int = 50)
         if e.status != 409:
             return f"Failed to create PVC '{pvc_name}': {e.reason}"
 
-    download_script = f"""\
-set -e
-pip install -q huggingface_hub
-python3 << 'PYEOF'
-from huggingface_hub import snapshot_download
-import os
-token = os.getenv('HF_TOKEN')
-snapshot_download(
-    repo_id='{dataset_repo_id}',
-    repo_type='dataset',
-    local_dir='/mnt/dataset',
-    token=token,
-)
+    # Not an f-string / .format() call: the git fallback below is full of
+    # literal ${VAR} bash syntax that would otherwise collide with brace
+    # interpolation. dataset_repo_id is spliced in via .replace() instead.
+    download_script = """\
+set -uo pipefail
+
+python3 - <<'PYEOF'
+import os, re, sys, time
+from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub.utils import HfHubHTTPError
+
+token = os.getenv("HF_TOKEN")
+repo_id = "__DATASET_REPO_ID__"
+
+# snapshot_download can swallow a rate-limit error itself: if it can't reach
+# the repo but local_dir already has *something* in it (e.g. a partial file
+# from a prior attempt sharing this PVC), it logs a warning and returns the
+# existing directory as-is instead of raising -- so a bare try/except around
+# it can't tell "downloaded everything" from "downloaded nothing, gave up
+# quietly". Compare against the repo's real file count instead of trusting
+# a clean return.
+try:
+    expected_files = len(HfApi().list_repo_files(repo_id, repo_type="dataset", token=token))
+except Exception as e:
+    print(f"could not list repo files up front ({e}) -- skipping completeness check", flush=True)
+    expected_files = None
+
+
+def local_file_count():
+    total = 0
+    for root, _dirs, files in os.walk("/mnt/dataset"):
+        if root == "/mnt/dataset/.cache" or root.startswith("/mnt/dataset/.cache/"):
+            continue
+        total += len(files)
+    return total
+
+
+max_attempts = 3
+for attempt in range(1, max_attempts + 1):
+    try:
+        snapshot_download(
+            repo_id=repo_id,
+            repo_type="dataset",
+            local_dir="/mnt/dataset",
+            token=token,
+            max_workers=4,
+        )
+        actual_files = local_file_count()
+        if expected_files is not None and actual_files < expected_files * 0.95:
+            print(
+                f"snapshot_download returned without error but only "
+                f"{actual_files}/{expected_files} files are present -- treating as "
+                f"incomplete (likely its own silent existing-local-dir fallback, not "
+                f"a real success)",
+                flush=True,
+            )
+        else:
+            print(f"SNAPSHOT_DOWNLOAD_OK ({actual_files} files)", flush=True)
+            sys.exit(0)
+    except HfHubHTTPError as e:
+        wait = 90
+        m = re.search(r"Retry after (\\d+) seconds", str(e))
+        if m:
+            wait = int(m.group(1)) + 10
+        print(f"snapshot_download attempt {attempt}/{max_attempts} failed: {e}", flush=True)
+        if attempt < max_attempts:
+            print(f"sleeping {wait}s before retry", flush=True)
+            time.sleep(wait)
+            continue
+    if attempt < max_attempts:
+        print(f"sleeping 90s before retry", flush=True)
+        time.sleep(90)
+print("SNAPSHOT_DOWNLOAD_EXHAUSTED -- falling back to git+lfs", flush=True)
+sys.exit(1)
 PYEOF
-"""
+snapshot_rc=$?
+
+if [ "$snapshot_rc" -ne 0 ]; then
+    # snapshot_download does a HEAD+GET per file, so it burns through HF's
+    # per-token rate limit fast on repos with tens of thousands of files.
+    # git-lfs instead resolves object URLs via the LFS batch API in ~100-
+    # object batches -- ~2 orders of magnitude fewer requests for the same
+    # content (confirmed live: 18min/0 429s vs an ~8h throttled crawl for a
+    # ~53k-file subset). git itself is preinstalled on this image; git-lfs
+    # isn't, so fetch its static binary into a user-writable dir (this
+    # image's restricted-SCC UID can't apt-get install into /usr).
+    set -e
+    mkdir -p /tmp/bin
+    export PATH="/tmp/bin:$PATH"
+    curl -sL -m 60 -o /tmp/git-lfs.tar.gz \\
+        https://github.com/git-lfs/git-lfs/releases/download/v3.5.1/git-lfs-linux-amd64-v3.5.1.tar.gz
+    tar -xzf /tmp/git-lfs.tar.gz -C /tmp
+    cp /tmp/git-lfs-*/git-lfs /tmp/bin/git-lfs
+    chmod +x /tmp/bin/git-lfs
+    git lfs install --skip-smudge
+    git config --global --add safe.directory '*'
+    rm -rf /tmp/repo
+    # Auth via an explicit header (not a token-in-URL) so it never shows up
+    # in `git remote -v` or error output. -c only applies to this one clone;
+    # persist the same header into the new repo's own config afterward so
+    # `git lfs pull` (a separate process) picks it up too.
+    GIT_LFS_SKIP_SMUDGE=1 git -c http.extraHeader="Authorization: Bearer ${HF_TOKEN}" \\
+        clone --depth 1 "https://huggingface.co/datasets/__DATASET_REPO_ID__" /tmp/repo
+    git -C /tmp/repo config http.extraHeader "Authorization: Bearer ${HF_TOKEN}"
+    git -C /tmp/repo lfs pull
+    find /tmp/repo -mindepth 1 -maxdepth 1 ! -name .git -exec cp -a {} /mnt/dataset/ \\;
+    rm -rf /tmp/repo /mnt/dataset/.cache
+    echo "DOWNLOAD_COMPLETE (git+lfs fallback)"
+else
+    echo "DOWNLOAD_COMPLETE (snapshot_download)"
+fi
+""".replace("__DATASET_REPO_ID__", dataset_repo_id)
 
     try:
         batch_api.create_namespaced_job(
@@ -802,7 +946,11 @@ PYEOF
                             "containers": [
                                 {
                                     "name": "downloader",
-                                    "image": "python:3.11-slim",
+                                    # Also used by convert_dataset_to_v3 -- already has git +
+                                    # python3 + huggingface_hub preinstalled, so the fallback
+                                    # below only needs to fetch git-lfs itself, and the primary
+                                    # snapshot_download path needs no pip install step at all.
+                                    "image": LEROBOT_IMAGE,
                                     "command": ["/bin/bash", "-c", download_script],
                                     "env": [
                                         {
@@ -815,10 +963,17 @@ PYEOF
                                         # OpenShift's restricted SCC runs this container as an
                                         # arbitrary non-root UID with no /etc/passwd entry, so
                                         # $HOME resolves to something unwritable (e.g. "/") --
-                                        # `pip install` fails trying to write its cache/user-site
-                                        # under that. Same root cause class as HF_HOME above, for
-                                        # a different tool.
+                                        # both huggingface_hub and git need a writable HOME for
+                                        # their caches/config.
                                         {"name": "HOME", "value": "/tmp"},
+                                        # Confirmed live: a repo with 100k+ small files (one per
+                                        # episode/camera) hit HTTP 429 from HF's xet-read-token
+                                        # endpoint within ~2 minutes at snapshot_download's default
+                                        # concurrency, twice in a row (both attempts died at
+                                        # nearly the same file count) -- disabling xet falls back
+                                        # to plain HTTP/LFS downloads, which don't hit that
+                                        # specific rate limit.
+                                        {"name": "HF_HUB_DISABLE_XET", "value": "1"},
                                     ],
                                     "volumeMounts": [{"name": "dataset-storage", "mountPath": "/mnt/dataset"}],
                                     "resources": {

@@ -120,6 +120,14 @@ def submit_pipeline_run(
             )
             kfp_kubernetes.mount_pvc(task, pvc_name=dataset_pvc_name, mount_path=dataset_mount_path)
             kfp_kubernetes.mount_pvc(task, pvc_name=checkpoint_pvc_name, mount_path=checkpoint_mount_path)
+            # Without this, /dev/shm defaults to a tiny node-backed tmpfs --
+            # confirmed live: lerobot-train's DataLoader workers (multiprocessing,
+            # passing decoded video-frame tensors between processes over shared
+            # memory) died with "unable to allocate shared memory(shm) ...
+            # Resource temporarily unavailable" a few seconds into the very first
+            # training step. A Memory-medium emptyDir mounted at /dev/shm gives
+            # the container a properly-sized shm instead of the tiny default.
+            kfp_kubernetes.empty_dir_mount(task, volume_name="dshm", mount_path="/dev/shm", medium="Memory", size_limit="4Gi")
             if stage["gpu"] > 0:
                 task.set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(stage["gpu"])
                 kfp_kubernetes.add_node_selector(task, label_key=GPU_NODE_SELECTOR_KEY, label_value=GPU_NODE_SELECTOR_VALUE)
