@@ -2,9 +2,15 @@ from langchain_core.tools import tool
 from kubernetes import client
 
 from platform_agent.config import settings
-from platform_agent.tools.datasets import DATASET_REPO_LABEL
-from platform_agent.tools.finetune_pipeline import get_finetune_eval_metrics, get_pipeline_run_status, submit_pipeline_run
-from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe, get_requirements
+from platform_agent.tools.datasets import dataset_repo_id_from_pvc
+from platform_agent.tools.finetune_pipeline import (
+    get_finetune_eval_metrics,
+    get_pipeline_run_state,
+    get_pipeline_run_status,
+    log_finetune_run_params,
+    submit_pipeline_run,
+)
+from platform_agent.tools.finetune_recipes import CHECKPOINT_MOUNT_PATH, dataset_mount_path, get_recipe
 
 FINETUNE_EXP_LABEL = "physical-ai.io/finetune-exp"
 FINETUNE_RUN_ID_ANNOTATION = "physical-ai.io/kfp-run-id"
@@ -25,46 +31,15 @@ def _checkpoint_pvc_name(exp_name: str) -> str:
 
 
 @tool
-def get_finetune_requirements(model_name: str = "pi05") -> str:
-    """Get a model's fine-tuning dataset requirements -- robot embodiment,
-    camera/state layout, dataset format, and a suggested search
-    query/filter -- BEFORE searching for a dataset. Call this first, then
-    pass its search_query_hint and robot_type into
-    search_compatible_lerobot_datasets, instead of searching for the model
-    name itself: a model-name keyword (e.g. 'pi05') returns datasets for
-    ANY embodiment anyone used with that model (simulated benchmarks,
-    humanoids, custom rigs with different cameras), not specifically the
-    embodiment THIS recipe's data config expects. This is derived from the
-    same recipe definition submit_finetune_run actually trains against, so
-    it can't drift out of sync with what training really needs.
-
-    Args:
-        model_name: Which fine-tuning recipe to look up. Only 'pi05' exists so far.
-    """
-    try:
-        req = get_requirements(model_name)
-    except ValueError as e:
-        return str(e)
-
-    return (
-        f"Fine-tuning dataset requirements for '{model_name}':\n"
-        f"Dataset format: {req['dataset_format']}\n"
-        f"Robot embodiment: {req['robot_type']}\n"
-        f"Camera views expected: {req['expected_exterior_cameras']} exterior, "
-        f"{req['expected_wrist_cameras']} wrist\n"
-        f"State/action: {req['state_action']}\n\n"
-        f"Suggested search: search_compatible_lerobot_datasets(query='{req['search_query_hint']}', "
-        f"expected_robot_type='{req['robot_type']}')\n"
-        f"{req['search_note']}\n\n"
-        f"To check a specific candidate, call validate_lerobot_dataset(dataset_repo_id=..., "
-        f"model_name='{model_name}') -- pass model_name, do NOT re-type "
-        f"expected_exterior_cameras/expected_wrist_cameras yourself from this text; "
-        f"model_name looks the same numbers up directly with no copying step to get wrong."
-    )
-
-
-@tool
-def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = "pi05") -> str:
+def submit_finetune_run(
+    dataset_pvc_name: str,
+    exp_name: str,
+    model_name: str = "pi05",
+    dataset_subset: str | None = None,
+    chunk_size: int | None = None,
+    n_action_steps: int | None = None,
+    empty_cameras: int | None = None,
+) -> str:
     """Start a fine-tuning run for a model against an already-staged dataset.
 
     This runs as a real KFP pipeline (train -> evaluate for pi05) against
@@ -76,12 +51,61 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
     own (no manual "create the next stage" step needed); call
     get_finetune_run_status afterward to check progress.
 
+    Resubmitting under an exp_name that already has a run is normally
+    refused -- but if that prior run's state is FAILED (e.g. after fixing a
+    dataset-format error with convert_dataset_to_v3), this proceeds and
+    reuses the same checkpoint PVC, overwriting the failed attempt's output.
+
     Args:
         dataset_pvc_name: The PVC name of an already-pull_dataset-staged
             dataset (e.g. 'dataset-my-droid-set-pvc').
         exp_name: Short experiment name, lowercase alphanumeric and hyphens
             (used as the K8s resource name prefix and the pipeline run's name).
         model_name: Which fine-tuning recipe to use. Only 'pi05' exists so far.
+        dataset_subset: For a PVC pulled from a repo that bundles several
+            independent LeRobot datasets as subfolders rather than one
+            dataset per repo (e.g. nvidia's
+            PhysicalAI-Robotics-Manipulation-SingleArm), which subfolder to
+            fine-tune on this run (e.g. 'panda-stack-platforms'). One
+            pull_dataset call stages the whole repo; different runs can
+            each pick a different dataset_subset from that same PVC without
+            re-downloading anything. Leave unset for an ordinary
+            one-dataset-per-repo PVC like droid_100.
+        chunk_size: Overrides pi05_base's default action-chunk length (in
+            dataset frames) -- a training-time choice, it changes what the
+            model is actually supervised to predict. Only relevant for
+            datasets whose fps differs from droid_100's 15fps: a fixed
+            chunk_size covers a different real-world time horizon at a
+            different fps, and should also stay well under the dataset's
+            own typical episode length. Leave unset for droid_100.
+        n_action_steps: How many of each predicted chunk's steps actually
+            get executed before the policy replans against a fresh
+            observation -- an inference-time choice, independent of
+            chunk_size (confirmed live: n_action_steps=15 with
+            chunk_size=50 is a valid combination, not just chunk_size's
+            equal). Must not exceed chunk_size; if chunk_size is lowered
+            and this is left unset, it's auto-capped to the new chunk_size
+            so config resolution doesn't fail outright. Leave unset for
+            droid_100.
+        empty_cameras: Pads N empty/masked camera slots when a dataset has
+            fewer camera views than pi05_base's pretrained checkpoint
+            expects. Confirmed real flag via `lerobot-train --help` on this
+            platform's own lerobot-gpu image. A dataset's own camera keys
+            (e.g. 'world_camera', 'hand_camera') should otherwise be left
+            as-is -- there used to be a rename_map param here to remap them
+            to pi05_base's own naming (e.g. 'base_0_rgb'), removed after
+            confirming live it actively breaks training: it renames the
+            keys the DataLoader yields at batch time, but cfg.input_features
+            (what PI05Policy._preprocess_images checks the batch against)
+            gets resolved from the dataset's RAW, un-renamed meta/info.json
+            names earlier in argument parsing, so the two sides end up
+            sharing zero key names -- "All image features are missing from
+            the batch" on the very first training step, 100% of the time.
+            Turned out unnecessary anyway: pretrained weight transfer from
+            lerobot/pi05_base doesn't need matching camera key names at all
+            ("Remapped 812 state dict keys / All keys loaded successfully"
+            happened fine using a dataset's own raw camera names) -- that
+            transfer is positional/structural, not name-matched.
     """
     core_api = _get_core_api()
 
@@ -94,13 +118,20 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
             return f"Dataset PVC '{dataset_pvc_name}' not found in '{settings.datasets_namespace}'. Pull it first with pull_dataset."
         return f"Could not read PVC '{dataset_pvc_name}': {e.reason}"
 
-    dataset_repo_label = (pvc.metadata.labels or {}).get(DATASET_REPO_LABEL)
-    if not dataset_repo_label:
+    dataset_repo_id = dataset_repo_id_from_pvc(pvc)
+    if not dataset_repo_id:
         return f"PVC '{dataset_pvc_name}' isn't labeled as a dataset cache — was it created by pull_dataset?"
-    dataset_repo_id = dataset_repo_label.replace("--", "/")
 
     try:
-        stages = get_recipe(model_name, dataset_repo_id, exp_name)
+        stages, recipe_params = get_recipe(
+            model_name,
+            dataset_repo_id,
+            exp_name,
+            dataset_subset=dataset_subset,
+            chunk_size=chunk_size,
+            n_action_steps=n_action_steps,
+            empty_cameras=empty_cameras,
+        )
     except ValueError as e:
         return str(e)
 
@@ -126,12 +157,28 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
             name=checkpoint_pvc_name, namespace=settings.datasets_namespace
         )
         existing_run_id = (existing_pvc.metadata.annotations or {}).get(FINETUNE_RUN_ID_ANNOTATION)
-        if existing_run_id:
+        if existing_run_id and get_pipeline_run_state(existing_run_id) != "FAILED":
             return (
                 f"A fine-tuning run named '{exp_name}' already exists (pipeline run "
                 f"'{existing_run_id}'). Check get_finetune_run_status('{exp_name}')."
             )
+        # existing_run_id's prior run reached the terminal FAILED state (or
+        # was never recorded at all) -- allow retrying under the same
+        # exp_name. Reuse the checkpoint PVC as-is rather than deleting and
+        # recreating it: the failed run's stage pods are deliberately left
+        # running for debugging (see submit_pipeline_run's ttl_seconds
+        # docstring), so they'd still be mounting this PVC and a delete would
+        # just hang in Terminating behind the pvc-protection finalizer.
+        # lerobot-train's own --output_dir semantics already overwrite a
+        # prior run's contents on a fresh run, so this is safe.
 
+    # dataset_repo_id here is always the plain repo id pull_dataset stored on
+    # the PVC (never subset-qualified -- pull_dataset always downloads the
+    # whole repo). The PVC gets mounted at the path that plain id implies;
+    # get_recipe is what appends dataset_subset on top of it to build
+    # --dataset.root, since that only matters inside the training/eval
+    # containers reading from the already-mounted filesystem, not for where
+    # the PVC itself gets mounted.
     try:
         run_id, dashboard_url = submit_pipeline_run(
             exp_name=exp_name,
@@ -144,6 +191,8 @@ def submit_finetune_run(dataset_pvc_name: str, exp_name: str, model_name: str = 
         )
     except Exception as e:
         return f"Failed to submit fine-tuning pipeline: {e}"
+
+    log_finetune_run_params(exp_name, recipe_params, kfp_run_id=run_id)
 
     try:
         core_api.patch_namespaced_persistent_volume_claim(
@@ -171,9 +220,12 @@ def get_finetune_run_status(exp_name: str) -> str:
     pipeline advances through its own stages on its own -- this is a
     read-only status check, not something that needs to be called
     repeatedly to make progress happen (unlike the old raw-Job version).
-    Also includes mean and per-episode action-MSE eval results once the
-    evaluate stage has logged them to MLflow -- omitted if that stage
-    hasn't run yet or hasn't finished.
+    Also includes the resolved recipe (dataset, step count, batch size,
+    episode split, ...) logged to MLflow at submission time, plus mean and
+    per-episode action-MSE eval results once the evaluate stage has logged
+    them there too -- eval results are omitted if that stage hasn't run yet
+    or hasn't finished; the recipe itself is omitted only if the
+    submission-time MLflow logging failed.
 
     Args:
         exp_name: The exp_name passed to submit_finetune_run.
@@ -202,6 +254,10 @@ def get_finetune_run_status(exp_name: str) -> str:
 
     eval_results = get_finetune_eval_metrics(exp_name)
     if eval_results:
+        recipe_params = eval_results.get("params")
+        if recipe_params:
+            result += "\nRecipe: " + ", ".join(f"{k}={v}" for k, v in recipe_params.items())
+
         metrics = eval_results["metrics"]
         per_episode = sorted(
             ((k[len("action_mse_ep") :], v) for k, v in metrics.items() if k.startswith("action_mse_ep")),

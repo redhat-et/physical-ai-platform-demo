@@ -19,6 +19,7 @@ dependencies = [
     "kfp>=2.17,<3.0",
     "kfp-kubernetes>=2.17,<3.0",
     "httpx>=0.28",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -29,3 +30,10 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Explicit rather than relying on hatchling's default package auto-detection:
+# this package is about to ship its first non-.py files (skills/*.md), and the
+# Containerfile's build context has no .git dir, so hatchling's default
+# VCS-aware file selection doesn't apply here.
+[tool.hatch.build.targets.wheel]
+packages = ["src/platform_agent"]

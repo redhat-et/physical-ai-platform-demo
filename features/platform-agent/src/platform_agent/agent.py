@@ -14,23 +14,34 @@ from platform_agent.tools.datasets import (
     search_datasets,
     search_compatible_lerobot_datasets,
     get_dataset_info,
+    get_dataset_rows,
+    get_dataset_file,
     validate_dataset_schema,
     validate_lerobot_dataset,
     pull_dataset,
     get_dataset_job_status,
+    convert_dataset_to_v3,
+    get_dataset_conversion_status,
     list_staged_datasets,
 )
 from platform_agent.tools.finetune import (
     submit_finetune_run,
     get_finetune_run_status,
-    get_finetune_requirements,
     list_finetune_runs,
 )
+from platform_agent.tools.checkpoint_deploy import (
+    deploy_checkpoint_model,
+    get_checkpoint_deployment_status,
+    takedown_checkpoint_model,
+    list_checkpoint_deployments,
+)
+from platform_agent.tools.skills import get_skill, skills_index
 
 SYSTEM_PROMPT = (
     settings.system_prompt
     .replace("{model}", settings.llm_model)
     .replace("{ns}", settings.models_namespace)
+    .replace("{skills}", skills_index())
 )
 
 TOOLS = [
@@ -45,15 +56,23 @@ TOOLS = [
     search_datasets,
     search_compatible_lerobot_datasets,
     get_dataset_info,
+    get_dataset_rows,
+    get_dataset_file,
     validate_dataset_schema,
     validate_lerobot_dataset,
     pull_dataset,
     get_dataset_job_status,
+    convert_dataset_to_v3,
+    get_dataset_conversion_status,
     list_staged_datasets,
-    get_finetune_requirements,
     submit_finetune_run,
     get_finetune_run_status,
     list_finetune_runs,
+    deploy_checkpoint_model,
+    get_checkpoint_deployment_status,
+    takedown_checkpoint_model,
+    list_checkpoint_deployments,
+    get_skill,
 ]
 
 

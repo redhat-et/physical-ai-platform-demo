@@ -18,6 +18,8 @@ zero conversion via that same serving setup. No custom TrainConfig shim
 needed either -- lerobot-train is a normal CLI.
 """
 
+import json
+
 from platform_agent.tools.datasets import _fetch_lerobot_info
 
 LEROBOT_IMAGE = "huggingface/lerobot-gpu:latest"
@@ -33,44 +35,23 @@ CHECKPOINT_MOUNT_PATH = "/mnt/checkpoint"
 # assumption hold.
 PI05_PRETRAINED_PATH = "lerobot/pi05_base"
 
-# What a fine-tuning dataset must actually look like for this recipe --
-# single source of truth for get_finetune_requirements, so this can't drift
-# from what training actually does. NOT a strict feature-key allowlist:
-# real-world DROID re-hosts on HF vary in exact naming (e.g.
-# 'observation.image.X' vs 'observation.images.X', combined vs separate
-# joint/gripper state) -- confirmed by checking multiple real datasets --
-# so this is guidance for search/manual review, not an exact-match filter.
-DATASET_REQUIREMENTS = {
-    "pi05": {
-        "dataset_format": (
-            "LeRobot v3.0 (lerobot-train's current default -- NOT the older v2.x; "
-            "a v2.x dataset needs `python -m lerobot.datasets.v30.convert_dataset_v21_to_v30` "
-            "first, or an older lerobot package pin. This is the opposite of what our "
-            "earlier openpi-based recipe needed -- the version requirement is tied to "
-            "which training mechanism a recipe uses, not a fixed platform-wide fact.)"
-        ),
-        "robot_type": "franka",
-        "expected_exterior_cameras": 2,
-        "expected_wrist_cameras": 1,
-        "expected_action_dim": 7,
-        "state_action": "joint position + gripper position (as separate or combined fields), 7-dim action",
-        "search_query_hint": "droid",
-        "search_note": (
-            "Search for 'droid', not 'pi05' -- 'pi05' as a keyword returns datasets for ANY "
-            "embodiment someone used with a pi0.5 model (LIBERO sim, humanoids, custom rigs "
-            "with different camera layouts), not specifically DROID-compatible data."
-        ),
-    }
-}
+# Per-model dataset-compatibility requirements (embodiment, camera counts,
+# action space, dataset format) live in the `datasets` skill
+# (platform_agent/skills/datasets.md), not here -- that content needs to
+# express real uncertainty/caveats a Python dict can't, and shouldn't imply
+# machine-checked ground truth it isn't.
 
+# Shared between _train_script's actual --policy.normalization_mapping flag
+# and get_recipe's logged params -- a single source of truth so the two can't
+# drift apart.
+NORMALIZATION_MAPPING = '{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'
 
-def get_requirements(model_name: str) -> dict:
-    """Returns this model's fine-tuning dataset requirements (see
-    DATASET_REQUIREMENTS), for get_finetune_requirements to format.
-    """
-    if model_name not in DATASET_REQUIREMENTS:
-        raise ValueError(f"No fine-tuning requirements defined for '{model_name}' -- only 'pi05' is defined so far.")
-    return DATASET_REQUIREMENTS[model_name]
+# Confirmed live via lerobot-train against lerobot/pi05_base with no
+# n_action_steps override: PI05Config.validate() reports its own default as
+# 50, matching its default chunk_size. Used only to decide whether
+# _train_script needs to auto-cap n_action_steps when chunk_size is lowered
+# without an explicit n_action_steps -- see _train_script's docstring.
+PI05_BASE_DEFAULT_N_ACTION_STEPS = 50
 
 
 def dataset_mount_path(dataset_repo_id: str) -> str:
@@ -128,8 +109,15 @@ def _checkpoint_dir(exp_name: str) -> str:
 
 
 def _train_script(
-    dataset_repo_id: str, exp_name: str, num_train_steps: int, batch_size: int, train_episodes: list[int]
-) -> str:
+    dataset_repo_id: str,
+    exp_name: str,
+    num_train_steps: int,
+    batch_size: int,
+    train_episodes: list[int],
+    chunk_size: int | None = None,
+    n_action_steps: int | None = None,
+    empty_cameras: int | None = None,
+) -> tuple[str, int | None]:
     """Training stage script: runs lerobot-train directly -- a plain CLI, no
     custom Python config-construction shim needed unlike the old openpi-based
     recipe. Uses the MEAN_STD normalization override instead of the
@@ -164,8 +152,68 @@ def _train_script(
     against LeRobot's own Makefile/CI examples (--dataset.episodes="[0]").
     Without this, the eval stage's "held-out" episodes were actually part of
     the training set the whole time (see split_episodes' docstring).
+
+    chunk_size/empty_cameras are opt-in overrides for datasets that don't
+    share DROID's fps or camera count -- confirmed real flags via
+    `lerobot-train --policy.type=pi05 --help` on this same image, and a full
+    (non-training) config-resolution dry run against a real --dataset.root
+    confirmed they parse and resolve correctly together. A different fps
+    changes the real-world time a fixed chunk_size covers; a dataset with
+    fewer camera views than pi05_base's pretrained input_features needs
+    padding via empty_cameras. Left unset (the default), the generated
+    command is byte-identical to the pre-existing droid_100-only script,
+    which needs neither.
+
+    There used to be a rename_map flag here too, to remap a dataset's own
+    camera key names to pi05_base's pretrained naming (e.g. 'world_camera'
+    -> 'base_0_rgb'). Removed after confirming live it actively breaks
+    training rather than helping: it renames the keys the DataLoader yields
+    at batch time, but cfg.input_features (what PI05Policy._preprocess_images
+    checks the batch against) gets resolved from the dataset's RAW,
+    un-renamed meta/info.json names earlier in argument parsing -- the two
+    sides then share zero key names, so every training step failed with
+    "All image features are missing from the batch". Confirmed unnecessary
+    besides: pretrained weight transfer from lerobot/pi05_base doesn't need
+    matching camera key names at all ("Remapped 812 state dict keys / All
+    keys loaded successfully" happened fine using a dataset's own raw
+    camera names) -- that transfer is positional/structural, not
+    name-matched. A dataset's own camera keys should just be left as-is.
+
+    chunk_size and n_action_steps are related but not the same knob:
+    chunk_size changes what the flow-matching loss actually supervises the
+    model to predict (a training-time hyperparameter), while
+    n_action_steps only controls how many of those predicted steps get
+    executed before the policy replans against a fresh observation (a
+    receding-horizon control choice pi05's own inference loop makes --
+    confirmed live that n_action_steps=15 with chunk_size=50 parses and
+    resolves fine, i.e. executing a short prefix of a longer prediction is
+    a normal, valid combination, not a fallback). The one hard constraint
+    (confirmed live via PI05Config.validate(), which pi05_base hits at its
+    own default of 50/50): n_action_steps must not exceed chunk_size --
+    "n_action_steps (50) cannot be greater than chunk_size (30)". So this
+    only auto-caps n_action_steps down to chunk_size when the caller
+    lowered chunk_size below 50 (pi05_base's confirmed pretrained default)
+    without giving an explicit n_action_steps of their own -- an explicit
+    n_action_steps always wins, letting a caller deliberately keep
+    replanning more frequent than the prediction horizon.
+
+    Returns (script, effective_n_action_steps) rather than just the script --
+    get_recipe logs the latter into its MLflow params so an auto-capped run's
+    provenance still records the value that actually got passed to
+    lerobot-train, not just whatever the caller (or lack thereof) supplied.
     """
-    return f"""\
+    optional_flags = ""
+    if chunk_size is not None:
+        optional_flags += f"    --policy.chunk_size={chunk_size} \\\n"
+    effective_n_action_steps = n_action_steps
+    if effective_n_action_steps is None and chunk_size is not None and chunk_size < PI05_BASE_DEFAULT_N_ACTION_STEPS:
+        effective_n_action_steps = chunk_size
+    if effective_n_action_steps is not None:
+        optional_flags += f"    --policy.n_action_steps={effective_n_action_steps} \\\n"
+    if empty_cameras is not None:
+        optional_flags += f"    --policy.empty_cameras={empty_cameras} \\\n"
+
+    script = f"""\
 set -e
 export HOME=/tmp
 export HF_LEROBOT_HOME={DATASET_MOUNT_ROOT}
@@ -180,13 +228,14 @@ lerobot-train \\
     --policy.gradient_checkpointing=true \\
     --policy.dtype=bfloat16 \\
     --policy.device=cuda \\
-    --policy.normalization_mapping='{{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}}' \\
-    --batch_size={batch_size} \\
+    --policy.normalization_mapping='{NORMALIZATION_MAPPING}' \\
+{optional_flags}    --batch_size={batch_size} \\
     --steps={num_train_steps} \\
     --output_dir={CHECKPOINT_MOUNT_PATH}/{exp_name} \\
     --job_name={exp_name} \\
     --wandb.enable=false
 """
+    return script, effective_n_action_steps
 
 
 def _evaluate_script(dataset_repo_id: str, exp_name: str, eval_episodes: list[int]) -> str:
@@ -294,11 +343,30 @@ try:
         )["experiment_id"]
 
     now_ms = int(time.time() * 1000)
-    run_id = _mlflow_request(
+
+    # submit_finetune_run's log_finetune_run_params already created this run
+    # (run_name=EXP_NAME) at submission time to record the recipe params
+    # before training even started -- find it and append metrics there
+    # instead of creating a second run. Only create one here as a fallback,
+    # e.g. if that submission-time logging failed.
+    search_result = _mlflow_request(
         "POST",
-        "/api/2.0/mlflow/runs/create",
-        {"experiment_id": experiment_id, "run_name": EXP_NAME, "start_time": now_ms},
-    )["run"]["info"]["run_id"]
+        "/api/2.0/mlflow/runs/search",
+        {
+            "experiment_ids": [experiment_id],
+            "filter": f"tags.\"mlflow.runName\" = '{EXP_NAME}'",
+            "max_results": 1,
+        },
+    )
+    existing_runs = search_result.get("runs", [])
+    if existing_runs:
+        run_id = existing_runs[0]["info"]["run_id"]
+    else:
+        run_id = _mlflow_request(
+            "POST",
+            "/api/2.0/mlflow/runs/create",
+            {"experiment_id": experiment_id, "run_name": EXP_NAME, "start_time": now_ms},
+        )["run"]["info"]["run_id"]
 
     metrics = [{"key": "mean_action_mse", "value": mean_mse, "timestamp": now_ms, "step": 0}]
     for ep_idx, err in zip(held_out, errors):
@@ -307,11 +375,7 @@ try:
     _mlflow_request(
         "POST",
         "/api/2.0/mlflow/runs/log-batch",
-        {
-            "run_id": run_id,
-            "metrics": metrics,
-            "tags": [{"key": "dataset_repo_id", "value": DATASET_REPO_ID}],
-        },
+        {"run_id": run_id, "metrics": metrics},
     )
     _mlflow_request(
         "POST",
@@ -327,8 +391,22 @@ cd /tmp && python3 run_eval.py
     return eval_script + mlflow_logging
 
 
-def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dict]:
-    """Returns the ordered stage list for a model's fine-tuning recipe.
+def get_recipe(
+    model_name: str,
+    dataset_repo_id: str,
+    exp_name: str,
+    dataset_subset: str | None = None,
+    chunk_size: int | None = None,
+    n_action_steps: int | None = None,
+    empty_cameras: int | None = None,
+) -> tuple[list[dict], dict[str, str]]:
+    """Returns the ordered stage list for a model's fine-tuning recipe, plus
+    the resolved recipe as a flat dict of MLflow-safe (string-valued) params
+    -- submit_finetune_run logs this to MLflow at submission time so a run's
+    exact provenance (dataset, step count, batch size, episode split, ...) is
+    recoverable later even if these hardcoded values change in a future
+    commit, or the run fails before the evaluate stage would otherwise be the
+    only thing writing to MLflow at all.
 
     Each stage: name, image, command (list, passed to bash -c), gpu (int
     GPUs requested; 0 means no nodeSelector/GPU resource added).
@@ -339,13 +417,34 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
     since re-deriving the same split both times is what keeps
     train_episodes/eval_episodes identical across both calls without having
     to persist the split anywhere.
+
+    dataset_subset: for a PVC pulled from a repo that bundles several
+    independent LeRobot datasets as subfolders (see pull_dataset and
+    split_dataset_repo_id in datasets.py) rather than one dataset per repo,
+    which subfolder within that already-staged PVC to train on. Appended
+    to dataset_repo_id (as "{dataset_repo_id}/{dataset_subset}") to build
+    the effective identifier _fetch_lerobot_info/_train_script/
+    _evaluate_script actually use for --dataset.root -- this is the one
+    place that composition happens; the PVC mount path submit_finetune_run
+    builds separately stays based on the plain dataset_repo_id, since the
+    PVC holds the whole repo regardless of which subset a given run trains
+    on.
+
+    chunk_size/n_action_steps/empty_cameras: passed straight through to
+    _train_script (see its docstring, including why rename_map was removed
+    from here entirely rather than kept as an option) -- only needed for
+    datasets whose fps or camera count differs from droid_100's. The eval
+    stage doesn't need them separately: it loads the fine-tuned
+    checkpoint's own saved config, which already has these baked in.
     """
     if model_name != "pi05":
         raise ValueError(f"No fine-tuning recipe for '{model_name}' -- only 'pi05' is defined so far.")
 
-    info = _fetch_lerobot_info(dataset_repo_id)
+    effective_dataset_id = f"{dataset_repo_id}/{dataset_subset}" if dataset_subset else dataset_repo_id
+
+    info = _fetch_lerobot_info(effective_dataset_id)
     if isinstance(info, str):
-        raise ValueError(f"Could not resolve recipe for '{dataset_repo_id}': {info}")
+        raise ValueError(f"Could not resolve recipe for '{effective_dataset_id}': {info}")
     train_episodes, eval_episodes = split_episodes(info["total_episodes"])
 
     # Temporarily reduced from 3_000 -- at the measured ~5.4s/step pace on a
@@ -354,8 +453,20 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
     # end to end without tying up a shared GPU for hours on every dry run.
     # Bump back up for a real training run meant to produce a usable policy.
     NUM_TRAIN_STEPS = 50
+    BATCH_SIZE = 32
 
-    return [
+    train_script, effective_n_action_steps = _train_script(
+        effective_dataset_id,
+        exp_name,
+        num_train_steps=NUM_TRAIN_STEPS,
+        batch_size=BATCH_SIZE,
+        train_episodes=train_episodes,
+        chunk_size=chunk_size,
+        n_action_steps=n_action_steps,
+        empty_cameras=empty_cameras,
+    )
+
+    stages = [
         {
             "name": "train",
             "image": LEROBOT_IMAGE,
@@ -363,15 +474,41 @@ def get_recipe(model_name: str, dataset_repo_id: str, exp_name: str) -> list[dic
             "command": [
                 "/bin/bash",
                 "-c",
-                _train_script(
-                    dataset_repo_id, exp_name, num_train_steps=NUM_TRAIN_STEPS, batch_size=32, train_episodes=train_episodes
-                ),
+                train_script,
             ],
         },
         {
             "name": "evaluate",
             "image": LEROBOT_IMAGE,
             "gpu": 1,
-            "command": ["/bin/bash", "-c", _evaluate_script(dataset_repo_id, exp_name, eval_episodes=eval_episodes)],
+            "command": [
+                "/bin/bash",
+                "-c",
+                _evaluate_script(effective_dataset_id, exp_name, eval_episodes=eval_episodes),
+            ],
         },
     ]
+
+    params = {
+        "model_name": model_name,
+        "dataset_repo_id": dataset_repo_id,
+        "pretrained_path": PI05_PRETRAINED_PATH,
+        "num_train_steps": str(NUM_TRAIN_STEPS),
+        "batch_size": str(BATCH_SIZE),
+        "normalization_mapping": NORMALIZATION_MAPPING,
+        "train_expert_only": "true",
+        "total_episodes": str(info["total_episodes"]),
+        "num_train_episodes": str(len(train_episodes)),
+        "num_eval_episodes": str(len(eval_episodes)),
+        "eval_episodes": str(eval_episodes),
+    }
+    if dataset_subset:
+        params["dataset_subset"] = dataset_subset
+    if chunk_size is not None:
+        params["chunk_size"] = str(chunk_size)
+    if effective_n_action_steps is not None:
+        params["n_action_steps"] = str(effective_n_action_steps)
+    if empty_cameras is not None:
+        params["empty_cameras"] = str(empty_cameras)
+
+    return stages, params

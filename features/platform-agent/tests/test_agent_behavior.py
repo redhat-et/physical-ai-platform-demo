@@ -170,9 +170,9 @@ def test_search_datasets_called_for_find_dataset_query(chat):
     """A request to find a dataset for a non-robot-policy task should call
     search_datasets, not fabricate a plausible-sounding dataset name/id.
     Deliberately NOT robot-policy-flavored (e.g. not "robot manipulation")
-    -- that phrasing now correctly triggers the smarter
-    get_finetune_requirements/search_compatible_lerobot_datasets path
-    instead, which is the improved, intended behavior, not a failure."""
+    -- that phrasing now correctly triggers the datasets skill's
+    DROID-specific search path instead, which is the improved, intended
+    behavior, not a failure."""
     result = chat("Find me a dataset for training a text sentiment classification model")
     assert "search_datasets" in result["tools_called"], result
 
@@ -188,40 +188,30 @@ def test_search_compatible_lerobot_datasets_used_for_robot_policy(chat):
     assert "search_compatible_lerobot_datasets" in result["tools_called"], result
 
 
-def test_get_finetune_requirements_called_before_search(chat):
-    """Regression: asked to find a dataset for pi05, the agent searched for
-    the model's own name ('pi05') and got back datasets for unrelated
-    embodiments (LIBERO sim, humanoids, custom rigs) instead of DROID data
-    this recipe actually needs. get_finetune_requirements must be called
-    before search_compatible_lerobot_datasets so the search is grounded in
-    the recipe's real robot_type/query hint, not a guess."""
-    result = chat("Find me a dataset to fine-tune the pi05 model")
-    assert "get_finetune_requirements" in result["tools_called"], result
-    if "search_compatible_lerobot_datasets" in result["tools_called"]:
-        assert (
-            result["tools_called"].index("get_finetune_requirements")
-            < result["tools_called"].index("search_compatible_lerobot_datasets")
-        ), f"search happened before checking requirements: {result['tools_called']}"
-
-
 def test_validate_lerobot_dataset_grounded_before_asserting_incompatible(chat):
     """Regression: asked to validate 'aractingi/droid_100_test' (a real,
     confirmed-compatible dataset) against pi05, the agent called
     validate_lerobot_dataset with fabricated expected_feature_keys
     ('observation.images.wrist_image_left'/'wrist_image_right' -- wrong
     prefix, and DROID doesn't even have a right wrist camera) and reported
-    a confident but false INCOMPATIBLE verdict. get_finetune_requirements
-    must be called first so any expected_* criteria passed are grounded in
-    the real recipe, not invented."""
+    a confident but false INCOMPATIBLE verdict. get_skill('datasets') --
+    the only grounded source for pi05's documented requirements now that
+    they live in the skill, not a get_finetune_requirements tool -- must be
+    called first so any expected_* criteria passed are grounded, not
+    invented."""
     result = chat("Can you validate aractingi/droid_100_test for fine-tuning pi05?")
     assert "validate_lerobot_dataset" in result["tools_called"], result
     calls = [c for c in result["tool_calls"] if c["name"] == "validate_lerobot_dataset"]
     assert calls, result
-    args = calls[0]["args"] or {}
-    if args.get("expected_feature_keys") or args.get("expected_action_dim"):
-        assert "get_finetune_requirements" in result["tools_called"], (
+    grounded_criteria_used = any(
+        (c["args"] or {}).get("expected_feature_keys") or (c["args"] or {}).get("expected_action_dim")
+        for c in calls
+    )
+    if grounded_criteria_used:
+        skill_calls = [c for c in result["tool_calls"] if c["name"] == "get_skill"]
+        assert any((c["args"] or {}).get("name") == "datasets" for c in skill_calls), (
             f"validate_lerobot_dataset was called with expected_* criteria "
-            f"but get_finetune_requirements (the only grounded source for "
+            f"but get_skill('datasets') (the only grounded source for "
             f"them) was never called -- criteria are likely fabricated: {result}"
         )
 
@@ -231,11 +221,9 @@ def test_validate_lerobot_dataset_uses_camera_counts_not_invented_keys(chat):
     invented an exact feature key ('observation.images.wrist_image_right')
     that has never existed in any real DROID dataset checked on this
     platform -- DROID has exactly one wrist camera, never two. Camera
-    compatibility should be grounded, not a guessed expected_feature_keys
-    string -- either via model_name (preferred: looks the counts up
-    directly, no transcription step to get wrong) or, failing that, the
-    manually-passed count-based expected_exterior_cameras/
-    expected_wrist_cameras args."""
+    compatibility should be grounded via the manually-passed count-based
+    expected_exterior_cameras/expected_wrist_cameras args (read from the
+    datasets skill), not a guessed expected_feature_keys string."""
     result = chat(
         "Is lerobot/droid_100 compatible with pi05's expected camera setup?"
     )
@@ -253,15 +241,14 @@ def test_validate_lerobot_dataset_uses_camera_counts_not_invented_keys(chat):
         f"Full args: {args}"
     )
     grounded = (
-        args.get("model_name")
-        or args.get("expected_exterior_cameras") is not None
+        args.get("expected_exterior_cameras") is not None
         or args.get("expected_wrist_cameras") is not None
     )
     assert grounded, (
-        f"Expected the agent to check camera compatibility via model_name "
-        f"(preferred) or the count-based expected_exterior_cameras/"
-        f"expected_wrist_cameras args, rather than no check at all or a "
-        f"guessed expected_feature_keys: {args}"
+        f"Expected the agent to check camera compatibility via the "
+        f"count-based expected_exterior_cameras/expected_wrist_cameras "
+        f"args, rather than no check at all or a guessed "
+        f"expected_feature_keys: {args}"
     )
 
 
