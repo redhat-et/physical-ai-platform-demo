@@ -38,10 +38,14 @@ def _parse_skill_file(text: str, filename: str) -> Skill:
 @lru_cache(maxsize=1)
 def _load_skills() -> dict[str, Skill]:
     skills: dict[str, Skill] = {}
-    for entry in sorted(resources.files(_SKILLS_PACKAGE).iterdir(), key=lambda p: p.name):
-        if entry.suffix != ".md":
+    root = resources.files(_SKILLS_PACKAGE)
+    for entry in sorted(root.iterdir(), key=lambda p: p.name):
+        skill_file = entry / "SKILL.md"
+        if not entry.is_dir() or not skill_file.is_file():
             continue
-        skill = _parse_skill_file(entry.read_text(encoding="utf-8"), entry.name)
+        skill = _parse_skill_file(
+            skill_file.read_text(encoding="utf-8"), f"{entry.name}/SKILL.md"
+        )
         if skill.name in skills:
             raise ValueError(f"duplicate skill name '{skill.name}' (in {entry.name})")
         skills[skill.name] = skill

@@ -1,9 +1,17 @@
+FROM registry.access.redhat.com/ubi9/python-311:latest AS skills
+ARG SKILLS_REPO=https://github.com/redhat-et/physical-ai-platform-agent-skills.git
+ARG SKILLS_REF=main
+USER 0
+RUN microdnf install -y git && microdnf clean all
+RUN git clone --depth 1 --branch ${SKILLS_REF} ${SKILLS_REPO} /tmp/skills-repo
+
 FROM registry.access.redhat.com/ubi9/python-311:latest
 
 WORKDIR /opt/app-root/src
 
 COPY pyproject.toml .
 COPY src/ src/
+COPY --from=skills /tmp/skills-repo/skills/ src/platform_agent/skills/
 
 RUN pip install --no-cache-dir .
 
