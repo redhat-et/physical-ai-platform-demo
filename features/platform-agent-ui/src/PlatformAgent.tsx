@@ -26,9 +26,19 @@ const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.open
 
 const POLL_INTERVAL_MS = 10000;
 const SLOW_WARNING_MS = 8 * 60 * 1000;
+const MESSAGES_STORAGE_KEY = "platform-agent-messages";
+
+const loadStoredMessages = (): Message[] => {
+  try {
+    const raw = sessionStorage.getItem(MESSAGES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
 
 const PlatformAgent: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(loadStoredMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -56,6 +66,14 @@ const PlatformAgent: React.FC = () => {
     checkModelStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+    } catch {
+      // storage unavailable (e.g. private browsing quota) — history just won't persist
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (modelState !== "starting") {
