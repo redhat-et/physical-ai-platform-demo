@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
 import {
   PageSection,
@@ -14,33 +14,20 @@ import {
   Label,
 } from "@patternfly/react-core";
 import ModelStartupGate, { ModelGateState } from "./ModelStartupGate";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  toolsCalled?: string[];
-  media?: { kind: "image" | "video"; url: string };
-}
-
-const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com";
+import {
+  API_BASE,
+  subscribe,
+  getSnapshot,
+  sendMessage as sendMessageToStore,
+  clearMessages,
+} from "./conversationStore";
 
 const POLL_INTERVAL_MS = 10000;
 const SLOW_WARNING_MS = 8 * 60 * 1000;
-const MESSAGES_STORAGE_KEY = "platform-agent-messages";
-
-const loadStoredMessages = (): Message[] => {
-  try {
-    const raw = sessionStorage.getItem(MESSAGES_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
 
 const PlatformAgent: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>(loadStoredMessages);
+  const { messages, loading, statusText } = useSyncExternalStore(subscribe, getSnapshot);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [modelState, setModelState] = useState<ModelGateState | "ready">("checking");
@@ -66,14 +53,6 @@ const PlatformAgent: React.FC = () => {
     checkModelStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
-    } catch {
-      // storage unavailable (e.g. private browsing quota) — history just won't persist
-    }
-  }, [messages]);
 
   useEffect(() => {
     if (modelState !== "starting") {
@@ -107,81 +86,13 @@ const PlatformAgent: React.FC = () => {
     checkModelStatus();
   };
 
-  const [statusText, setStatusText] = useState("");
-
-  const sendMessage = async () => {
+  const sendMessage = () => {
     const text = input.trim();
     if (!text || loading) return;
-
     setInput("");
-    const history = [...messages];
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setLoading(true);
-    setStatusText("");
-
-    try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history }),
-        signal: AbortSignal.timeout(300000),
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let pendingMedia: Message["media"] | undefined;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6);
-          if (payload === "[DONE]") continue;
-
-          try {
-            const data = JSON.parse(payload);
-            if (data.status) {
-              setStatusText(data.status);
-            } else if (data.media) {
-              pendingMedia = data.media;
-            } else if (data.response) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "assistant",
-                  content: data.response,
-                  toolsCalled: data.tools_called || [],
-                  media: pendingMedia,
-                },
-              ]);
-            }
-          } catch {
-            // skip malformed JSON
-          }
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `Error: could not reach the agent (${msg}).` },
-      ]);
-    } finally {
-      setLoading(false);
-      setStatusText("");
-    }
+    // Fire-and-forget: the store keeps the request running (and keeps
+    // history persisted) even if this component unmounts before it resolves.
+    void sendMessageToStore(text);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -195,17 +106,25 @@ const PlatformAgent: React.FC = () => {
     <>
       <PageSection>
         <Flex
-          direction={{ default: "row" }}
+          justifyContent={{ default: "justifyContentSpaceBetween" }}
           alignItems={{ default: "alignItemsCenter" }}
-          gap={{ default: "gapSm" }}
         >
           <FlexItem>
-            <Title headingLevel="h1" size="xl">
-              Platform Agent
-            </Title>
+            <Flex alignItems={{ default: "alignItemsCenter" }} gap={{ default: "gapSm" }}>
+              <FlexItem>
+                <Title headingLevel="h1" size="xl">
+                  Platform Agent
+                </Title>
+              </FlexItem>
+              <FlexItem>
+                <Label color="orange">Experimental</Label>
+              </FlexItem>
+            </Flex>
           </FlexItem>
           <FlexItem>
-            <Label color="orange">Experimental</Label>
+            <Button variant="secondary" onClick={clearMessages} isDisabled={messages.length === 0}>
+              Clear conversation
+            </Button>
           </FlexItem>
         </Flex>
       </PageSection>
