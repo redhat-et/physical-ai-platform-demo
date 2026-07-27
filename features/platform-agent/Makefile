@@ -22,11 +22,11 @@ run:
 	uvicorn platform_agent.main:app --host 0.0.0.0 --port 8000 --reload
 
 fetch-skills:
-	rm -rf $(SKILLS_DIR)/.fetch-tmp
-	git clone --depth 1 --branch $(SKILLS_REF) $(SKILLS_REPO) $(SKILLS_DIR)/.fetch-tmp
+	rm -rf .skills-fetch-tmp
+	git clone --depth 1 --branch $(SKILLS_REF) $(SKILLS_REPO) .skills-fetch-tmp
 	find $(SKILLS_DIR) -mindepth 1 -maxdepth 1 ! -name '__init__.py' ! -name '__pycache__' -exec rm -rf {} +
-	cp -r $(SKILLS_DIR)/.fetch-tmp/skills/. $(SKILLS_DIR)/
-	rm -rf $(SKILLS_DIR)/.fetch-tmp
+	cp -r .skills-fetch-tmp/skills/. $(SKILLS_DIR)/
+	rm -rf .skills-fetch-tmp
 
 test: fetch-skills
 	pytest
