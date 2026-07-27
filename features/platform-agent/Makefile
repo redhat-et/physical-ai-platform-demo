@@ -1,11 +1,15 @@
 IMAGE ?= quay.io/redhat-et/physical-ai-agent:latest
 CONTAINER_ENGINE ?= docker
 PLATFORM ?= linux/amd64
+SKILLS_REPO ?= https://github.com/redhat-et/physical-ai-platform-agent-skills.git
+SKILLS_REF ?= main
 
 .PHONY: build push deploy run
 
 build:
-	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -t $(IMAGE) -f Containerfile .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -t $(IMAGE) \
+		--build-arg SKILLS_REPO=$(SKILLS_REPO) --build-arg SKILLS_REF=$(SKILLS_REF) \
+		-f Containerfile .
 
 push:
 	$(CONTAINER_ENGINE) push $(IMAGE)

@@ -22,18 +22,14 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 # Explicit rather than relying on hatchling's default package auto-detection:
-# this package is about to ship its first non-.py files (skills/*.md), and the
-# Containerfile's build context has no .git dir, so hatchling's default
+# skills/<name>/SKILL.md files are fetched into src/platform_agent/skills/ at
+# build time by the Containerfile's skills stage rather than committed, and
+# the Containerfile's build context has no .git dir, so hatchling's default
 # VCS-aware file selection doesn't apply here.
 [tool.hatch.build.targets.wheel]
 packages = ["src/platform_agent"]
