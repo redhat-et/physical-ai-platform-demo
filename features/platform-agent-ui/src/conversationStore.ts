@@ -1,0 +1,133 @@
+export interface Message {
+  role: "user" | "assistant";
+  content: string;
+  toolsCalled?: string[];
+  media?: { kind: "image" | "video"; url: string };
+}
+
+export const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com";
+
+const MESSAGES_STORAGE_KEY = "platform-agent-messages";
+
+interface ConversationState {
+  messages: Message[];
+  loading: boolean;
+  statusText: string;
+}
+
+const loadStoredMessages = (): Message[] => {
+  try {
+    const raw = sessionStorage.getItem(MESSAGES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+// Module-level so it survives the component unmounting/remounting as the
+// dashboard's router navigates away from and back to this tab — an in-flight
+// request keeps running and updating this state either way.
+let state: ConversationState = {
+  messages: loadStoredMessages(),
+  loading: false,
+  statusText: "",
+};
+
+const listeners = new Set<() => void>();
+
+const setState = (patch: Partial<ConversationState>) => {
+  state = { ...state, ...patch };
+  if (patch.messages) {
+    try {
+      sessionStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(state.messages));
+    } catch {
+      // storage unavailable (e.g. private browsing quota) — history just won't persist
+    }
+  }
+  listeners.forEach((listener) => listener());
+};
+
+export const subscribe = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+export const getSnapshot = (): ConversationState => state;
+
+export const clearMessages = (): void => {
+  setState({ messages: [] });
+};
+
+export const sendMessage = async (text: string): Promise<void> => {
+  if (!text || state.loading) return;
+
+  const history = [...state.messages];
+  setState({ messages: [...state.messages, { role: "user", content: text }], loading: true, statusText: "" });
+
+  try {
+    const res = await fetch(`${API_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history }),
+      signal: AbortSignal.timeout(300000),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response stream");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let pendingMedia: Message["media"] | undefined;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6);
+        if (payload === "[DONE]") continue;
+
+        try {
+          const data = JSON.parse(payload);
+          if (data.status) {
+            setState({ statusText: data.status });
+          } else if (data.media) {
+            pendingMedia = data.media;
+          } else if (data.response) {
+            setState({
+              messages: [
+                ...state.messages,
+                {
+                  role: "assistant",
+                  content: data.response,
+                  toolsCalled: data.tools_called || [],
+                  media: pendingMedia,
+                },
+              ],
+            });
+          }
+        } catch {
+          // skip malformed JSON
+        }
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    setState({
+      messages: [
+        ...state.messages,
+        { role: "assistant", content: `Error: could not reach the agent (${msg}).` },
+      ],
+    });
+  } finally {
+    setState({ loading: false, statusText: "" });
+  }
+};
