@@ -1,0 +1,15 @@
+FROM docker.io/library/golang:latest AS builder
+ARG MCP_SERVER_REPO=https://github.com/openshift/openshift-mcp-server.git
+ARG MCP_SERVER_REF=main
+RUN git clone --depth 1 --branch ${MCP_SERVER_REF} ${MCP_SERVER_REPO} /src
+WORKDIR /src
+RUN make build
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+COPY --from=builder /src/kubernetes-mcp-server /usr/local/bin/openshift-mcp-server
+
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/openshift-mcp-server"]
+CMD ["--port", "8080", "--toolsets=core"]

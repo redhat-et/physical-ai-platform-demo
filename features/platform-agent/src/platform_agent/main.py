@@ -6,6 +6,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from pydantic import BaseModel
 
 from platform_agent import media_store
@@ -20,11 +21,31 @@ agent_mode = None
 agent = None
 
 
+MCP_SERVER_URL = "http://localhost:8080/mcp"
+
+
+async def _load_mcp_tools() -> list:
+    """Cluster-access tools (resource get/list/scale, pod logs, ...) served by
+    the openshift-mcp-server sidecar (platform/base/agent/deployment.yaml).
+    Falls back to no MCP tools rather than failing startup -- e.g. local dev
+    via `make run` has no sidecar to connect to.
+    """
+    client = MultiServerMCPClient(
+        {"openshift": {"url": MCP_SERVER_URL, "transport": "streamable_http"}}
+    )
+    try:
+        return await client.get_tools()
+    except Exception:
+        logger.exception("could not load tools from openshift-mcp-server at %s", MCP_SERVER_URL)
+        return []
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global agent_mode, agent
-    agent_mode, agent = build_agent(use_tools=True)
-    print(f"Agent started in '{agent_mode}' mode")
+    mcp_tools = await _load_mcp_tools()
+    agent_mode, agent = build_agent(use_tools=True, extra_tools=mcp_tools)
+    print(f"Agent started in '{agent_mode}' mode with {len(mcp_tools)} MCP tool(s)")
     yield
 
 
