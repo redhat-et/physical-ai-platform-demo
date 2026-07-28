@@ -5,8 +5,6 @@ from langgraph.prebuilt import create_react_agent
 from openai import DefaultHttpxClient
 
 from platform_agent.config import settings
-from platform_agent.tools.models import list_models, get_model_status, scale_model
-from platform_agent.tools.pods import get_pod_logs
 from platform_agent.tools.inference import call_model
 from platform_agent.tools.hardware import list_cluster_gpus, estimate_model_footprint
 from platform_agent.tools.manifests import generate_model_manifests
@@ -35,20 +33,26 @@ from platform_agent.tools.checkpoint_deploy import (
     takedown_checkpoint_model,
     list_checkpoint_deployments,
 )
-from platform_agent.tools.skills import get_skill, skills_index
+from platform_agent.tools.skills import get_skill, list_skills
+
+# Deduped, order-preserving -- infra_namespace and datasets_namespace are
+# both "physical-ai" today but aren't guaranteed to stay that way, and this
+# drives RULE 5's namespace list, so it must reflect the real settings
+# rather than being hardcoded separately in the prompt text.
+_NAMESPACES = ", ".join(dict.fromkeys([
+    settings.models_namespace,
+    settings.infra_namespace,
+    settings.maas_namespace,
+    settings.datasets_namespace,
+]))
 
 SYSTEM_PROMPT = (
     settings.system_prompt
     .replace("{model}", settings.llm_model)
-    .replace("{ns}", settings.models_namespace)
-    .replace("{skills}", skills_index())
+    .replace("{namespaces}", _NAMESPACES)
 )
 
 TOOLS = [
-    list_models,
-    get_model_status,
-    get_pod_logs,
-    scale_model,
     call_model,
     list_cluster_gpus,
     estimate_model_footprint,
@@ -73,10 +77,11 @@ TOOLS = [
     takedown_checkpoint_model,
     list_checkpoint_deployments,
     get_skill,
+    list_skills,
 ]
 
 
-def build_agent(use_tools: bool = True):
+def build_agent(use_tools: bool = True, extra_tools: list = ()):
     llm = ChatOpenAI(
         base_url=settings.llm_base_url,
         model=settings.llm_model,
@@ -88,7 +93,7 @@ def build_agent(use_tools: bool = True):
 
     if use_tools:
         try:
-            agent = create_react_agent(llm, TOOLS, prompt=SYSTEM_PROMPT)
+            agent = create_react_agent(llm, [*TOOLS, *extra_tools], prompt=SYSTEM_PROMPT)
             return ("agent", agent)
         except Exception:
             pass

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -6,6 +7,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from pydantic import BaseModel
 
 from platform_agent import media_store
@@ -20,11 +22,52 @@ agent_mode = None
 agent = None
 
 
+MCP_SERVER_URL = "http://localhost:8080/mcp"
+# initContainers ordering (platform/base/agent/deployment.yaml) guarantees the
+# sidecar's TCP port is accepting connections before this container even
+# starts, but a bare tcpSocket readiness probe doesn't guarantee the MCP
+# server has finished initializing enough to serve a real request -- and if
+# it ever restarts after this process's one-shot startup (OOM, crash, node
+# hiccup), there's no other retry point. Bounded backoff here covers both,
+# without blocking FastAPI startup indefinitely if the sidecar is genuinely
+# unreachable (e.g. local dev via `make run`, which has no sidecar at all).
+MCP_CONNECT_RETRIES = 5
+MCP_CONNECT_BACKOFF_SECONDS = 2  # doubles each attempt: 2, 4, 8, 16 (~30s worst case)
+
+
+async def _load_mcp_tools() -> list:
+    """Cluster-access tools (resource get/list/scale, pod logs, ...) served by
+    the openshift-mcp-server sidecar. Falls back to no MCP tools, rather than
+    blocking startup forever, once retries are exhausted.
+    """
+    client = MultiServerMCPClient(
+        {"openshift": {"url": MCP_SERVER_URL, "transport": "streamable_http"}}
+    )
+    for attempt in range(1, MCP_CONNECT_RETRIES + 1):
+        try:
+            return await client.get_tools()
+        except Exception:
+            if attempt == MCP_CONNECT_RETRIES:
+                logger.exception(
+                    "could not load tools from openshift-mcp-server at %s after %d attempt(s)",
+                    MCP_SERVER_URL, attempt,
+                )
+                return []
+            delay = MCP_CONNECT_BACKOFF_SECONDS * (2 ** (attempt - 1))
+            logger.warning(
+                "openshift-mcp-server not reachable at %s (attempt %d/%d) -- retrying in %ds",
+                MCP_SERVER_URL, attempt, MCP_CONNECT_RETRIES, delay,
+            )
+            await asyncio.sleep(delay)
+    return []  # unreachable -- every branch above returns
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global agent_mode, agent
-    agent_mode, agent = build_agent(use_tools=True)
-    print(f"Agent started in '{agent_mode}' mode")
+    mcp_tools = await _load_mcp_tools()
+    agent_mode, agent = build_agent(use_tools=True, extra_tools=mcp_tools)
+    print(f"Agent started in '{agent_mode}' mode with {len(mcp_tools)} MCP tool(s)")
     yield
 
 

@@ -16,6 +16,27 @@ spec:
         app: platform-agent
     spec:
       serviceAccountName: platform-agent
+      initContainers:
+        - name: mcp-server
+          image: quay.io/redhat-et/openshift-mcp-server:latest
+          imagePullPolicy: Always
+          restartPolicy: Always
+          args: ["--port", "8080", "--toolsets=core"]
+          ports:
+            - name: mcp
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: mcp
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
       containers:
         - name: agent
           image: quay.io/redhat-et/physical-ai-agent:latest

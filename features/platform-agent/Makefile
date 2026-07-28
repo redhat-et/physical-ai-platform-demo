@@ -9,6 +9,7 @@ SKILLS_REF ?= main
 build:
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -t $(IMAGE) \
 		--build-arg SKILLS_REPO=$(SKILLS_REPO) --build-arg SKILLS_REF=$(SKILLS_REF) \
+		--no-cache-filter=skills \
 		-f Containerfile .
 
 push:

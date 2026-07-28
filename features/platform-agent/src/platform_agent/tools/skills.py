@@ -53,10 +53,22 @@ def _load_skills() -> dict[str, Skill]:
 
 
 def skills_index() -> str:
-    """Render the always-on index for the system prompt: one 'name:
-    description' line per skill, sorted by name for determinism.
+    """Render the index of available skills: one 'name: description' line
+    per skill, sorted by name for determinism.
     """
     return "\n".join(f"- {s.name}: {s.description}" for s in _load_skills().values())
+
+
+@tool
+def list_skills() -> str:
+    """List the narrow workflow skills available, with a one-line
+    description of when to use each. Call this first for any request that
+    might touch a specific workflow (models, datasets, fine-tuning,
+    deploying) -- the one-line description alone is never enough to act on,
+    so follow up with get_skill(name) on whichever one matches before doing
+    anything else.
+    """
+    return skills_index()
 
 
 @tool
