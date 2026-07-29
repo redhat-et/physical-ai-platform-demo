@@ -9,6 +9,10 @@ dependencies = [
     "langchain>=0.3",
     "langchain-openai>=0.3",
     "langchain-mcp-adapters>=0.1",
+    # mcp 2.0.0 (released 2026-07-28) moved/removed mcp.shared.context.RequestContext,
+    # breaking langchain-mcp-adapters' import of it. Pin to the compatible 1.x line
+    # until langchain-mcp-adapters confirms mcp 2.0 support.
+    "mcp<2.0",
     # kfp==2.17.0 hard-pins kubernetes<31 -- confirmed none of our own K8s
     # client usage (CoreV1Api/BatchV1Api/CustomObjectsApi/AppsV1Api) needs
     # anything specific to 31+, so relaxed to what's actually installable

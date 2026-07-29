@@ -12,11 +12,8 @@ class Settings(BaseSettings):
     llm_api_key: str = "unused"
     maas_proxy_url: str = "https://maas-proxy.physical-ai-models.svc.cluster.local"
 
-    # Set via the AGENT_SYSTEM_PROMPT env var, sourced from the
-    # platform-agent-config ConfigMap -- that ConfigMap is the only copy of
-    # this text, so it can be edited live without rebuilding the agent image.
-    # May contain the literal placeholders {model} and {ns}, substituted in
-    # agent.py.
+    model_catalog_raw_base: str = "https://raw.githubusercontent.com/redhat-et/physical-ai-platform-demo/main"
+
     system_prompt: str
 
     model_config = {"env_prefix": "AGENT_"}
