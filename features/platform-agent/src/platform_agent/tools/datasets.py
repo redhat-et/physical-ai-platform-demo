@@ -1035,30 +1035,3 @@ def get_dataset_conversion_status(dataset_pvc_name: str) -> str:
         result += " Dataset is now v3.0 -- retry submit_finetune_run with the same dataset_pvc_name."
 
     return result
-
-
-@tool
-def list_staged_datasets() -> str:
-    """List datasets already staged on the cluster (downloaded via
-    pull_dataset), so you don't redundantly re-pull one that's already
-    available. Shows each staged dataset's PVC name, source HF repo, size,
-    and bound status.
-    """
-    core_api, _ = _get_clients()
-
-    pvcs = core_api.list_namespaced_persistent_volume_claim(
-        namespace=settings.datasets_namespace,
-        label_selector=f"{DATASET_CACHE_LABEL}=true",
-    )
-
-    if not pvcs.items:
-        return "No datasets currently staged."
-
-    lines = []
-    for pvc in pvcs.items:
-        repo = pvc.metadata.labels.get(DATASET_REPO_LABEL, "unknown").replace("--", "/")
-        size = pvc.spec.resources.requests.get("storage", "?")
-        phase = pvc.status.phase
-        lines.append(f"- {pvc.metadata.name}: source={repo}, size={size}, status={phase}")
-
-    return "Staged datasets:\n" + "\n".join(lines)

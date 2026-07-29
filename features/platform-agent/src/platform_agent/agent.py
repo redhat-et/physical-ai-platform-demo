@@ -15,7 +15,6 @@ from platform_agent.tools.datasets import (
     get_dataset_job_status,
     convert_dataset_to_v3,
     get_dataset_conversion_status,
-    list_staged_datasets,
 )
 from platform_agent.tools.finetune import (
     submit_finetune_run,
@@ -58,7 +57,6 @@ TOOLS = [
     get_dataset_job_status,
     convert_dataset_to_v3,
     get_dataset_conversion_status,
-    list_staged_datasets,
     submit_finetune_run,
     get_finetune_run_status,
     list_finetune_runs,
