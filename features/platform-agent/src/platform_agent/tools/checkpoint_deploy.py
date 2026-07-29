@@ -359,8 +359,8 @@ def get_checkpoint_deployment_status(exp_name: str, model_name: str = "pi05") ->
         if import_job.status.failed:
             return (
                 f"Checkpoint copy for '{exp_name}' failed (import Job '{import_job_name}'). "
-                f"Check get_pod_logs for its pod, then call deploy_checkpoint_model again after "
-                f"fixing the issue."
+                f"Check its pod logs (see the models skill's GETTING LOGS steps), then call "
+                f"deploy_checkpoint_model again after fixing the issue."
             )
         return f"Copying checkpoint '{exp_name}' into the models namespace ('{import_job_name}' still running)."
 
@@ -722,8 +722,9 @@ def takedown_checkpoint_model(exp_name: str, model_name: str = "pi05") -> str:
 def list_checkpoint_deployments() -> str:
     """List fine-tuned checkpoints currently deployed as live comparison
     endpoints (via deploy_checkpoint_model), with real-time status. Separate
-    from list_models (permanent catalog models) and list_finetune_runs
-    (checkpoints that exist but may not be deployed anywhere)."""
+    from the models skill's LISTING MODELS steps (permanent catalog models)
+    and list_finetune_runs (checkpoints that exist but may not be deployed
+    anywhere)."""
     core_api, _, custom_api = _get_clients()
     items = custom_api.list_namespaced_custom_object(
         group="serving.kserve.io",
