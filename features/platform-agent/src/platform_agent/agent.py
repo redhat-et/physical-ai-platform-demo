@@ -8,6 +8,8 @@ from platform_agent.config import settings
 from platform_agent.tools.inference import call_model
 from platform_agent.tools.hardware import list_cluster_gpus, estimate_model_footprint
 from platform_agent.tools.manifests import generate_model_manifests
+from platform_agent.tools.model_catalog import get_model_readme
+from platform_agent.tools.models import scale_model
 from platform_agent.tools.datasets import (
     search_datasets,
     search_compatible_lerobot_datasets,
@@ -57,6 +59,8 @@ TOOLS = [
     list_cluster_gpus,
     estimate_model_footprint,
     generate_model_manifests,
+    get_model_readme,
+    scale_model,
     search_datasets,
     search_compatible_lerobot_datasets,
     get_dataset_info,
