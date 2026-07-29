@@ -58,10 +58,11 @@ def _resolve_config_split(
 
 
 def _fetch_schema_preview(dataset_repo_id: str, config: str | None, split: str) -> dict | str:
-    """Shared helper for get_dataset_info/validate_dataset_schema. Returns a
-    dict with resolved config/split/features/sample_row, or an error string.
-    Uses the HF datasets-server REST API (no local `datasets` library
-    dependency) to preview schema/rows without downloading anything.
+    """Shared helper for get_dataset_info's summary view and validate_dataset's
+    generic format. Returns a dict with resolved config/split/features/
+    sample_row, or an error string. Uses the HF datasets-server REST API (no
+    local `datasets` library dependency) to preview schema/rows without
+    downloading anything.
     """
     try:
         with httpx.Client(timeout=15.0) as http:
@@ -103,29 +104,13 @@ MAX_DATASET_ROWS_PER_CALL = 20
 MAX_DATASET_ROWS_OUTPUT_CHARS = 20_000
 
 
-@tool
-def get_dataset_rows(
+def _dataset_info_rows(
     dataset_repo_id: str,
-    offset: int = 0,
-    length: int = 5,
-    config: str | None = None,
-    split: str = "train",
+    offset: int,
+    length: int,
+    config: str | None,
+    split: str,
 ) -> str:
-    """Fetch a range of raw rows from a Hugging Face dataset — unlike
-    get_dataset_info's single sample row, this lets you compare fields
-    against each other across several rows. Use this when a field's
-    meaning isn't documented (e.g. an unlabeled 'action' column) and you
-    need to check it against a separately-labeled field (e.g.
-    'observation.state.cartesian_position') at adjacent row indices to see
-    whether they track each other. No download happens.
-
-    Args:
-        dataset_repo_id: Hugging Face dataset repo id.
-        offset: Row index to start from (default 0).
-        length: Number of rows to fetch (default 5, capped at 20).
-        config: Dataset config/subset name. Defaults to the first available one.
-        split: Dataset split (default 'train').
-    """
     length = max(1, min(length, MAX_DATASET_ROWS_PER_CALL))
     try:
         with httpx.Client(timeout=15.0) as http:
@@ -173,21 +158,7 @@ def get_dataset_rows(
     return out
 
 
-@tool
-def get_dataset_info(dataset_repo_id: str, config: str | None = None, split: str = "train") -> str:
-    """Get size, license, gated status, tags, creation/last-modified dates,
-    configs/splits, column schema, and a sample row for a Hugging Face
-    dataset — without downloading it. Always call this and relay its
-    size/license to the user before ever calling pull_dataset: pulling
-    consumes real shared-cluster storage, so the user must explicitly
-    confirm after seeing this info. Check Gated before ever suggesting
-    pull_dataset -- a gated dataset needs manual approval first.
-
-    Args:
-        dataset_repo_id: Hugging Face dataset repo id, e.g. 'GEAR-Dreams/DreamZero-DROID'.
-        config: Dataset config/subset name. Defaults to the first available one.
-        split: Dataset split to preview a sample row from (default 'train').
-    """
+def _dataset_info_summary(dataset_repo_id: str, config: str | None, split: str) -> str:
     from huggingface_hub import HfApi
 
     try:
@@ -232,19 +203,7 @@ MAX_DATASET_FILE_BYTES = 2_000_000
 MAX_DATASET_FILE_CHARS = 20_000
 
 
-@tool
-def get_dataset_file(dataset_repo_id: str, filename: str) -> str:
-    """Fetch one file's text content from a Hugging Face dataset repo —
-    e.g. 'README.md' for collection-methodology/task-diversity narrative,
-    or 'meta/stats.json' for precomputed normalization stats — that
-    get_dataset_info/validate_lerobot_dataset don't surface. This is for
-    reading docs/metadata, not data files: refuses anything over ~2MB or
-    not decodable as text. Use pull_dataset to actually download a dataset.
-
-    Args:
-        dataset_repo_id: Hugging Face dataset repo id.
-        filename: Exact path within the repo, e.g. 'README.md' or 'meta/stats.json'.
-    """
+def _dataset_info_file(dataset_repo_id: str, filename: str) -> str:
     from huggingface_hub import HfApi, hf_hub_download
 
     try:
@@ -282,27 +241,55 @@ def get_dataset_file(dataset_repo_id: str, filename: str) -> str:
 
 
 @tool
-def validate_dataset_schema(
+def get_dataset_info(
     dataset_repo_id: str,
-    expected_columns: list[str] | None = None,
+    view: str = "summary",
+    filename: str | None = None,
+    offset: int = 0,
+    length: int = 5,
     config: str | None = None,
     split: str = "train",
 ) -> str:
-    """Check a Hugging Face dataset's column schema against a target model's
-    expected input format, without downloading it. Use this to check
-    compatibility before recommending a dataset for fine-tuning a specific
-    model — get the expected columns from that model's catalog README
-    'Architecture'/'Intended Use' section (e.g. a robot policy model
-    typically expects 'observation'/'action' keys; a video world model
-    typically expects 'video'/'caption' or 'text'/'image' pairs).
+    """Inspect a Hugging Face dataset without downloading it. Three views:
+    'summary' (default) for size, license, gated status, tags, dates,
+    schema, and one sample row; 'rows' for a range of raw rows via
+    offset/length, to compare fields across several rows instead of just
+    one; 'file' for one file's raw text (e.g. 'README.md' or
+    'meta/stats.json'). See the datasets skill for which view answers
+    which compatibility question.
+
+    Always call view='summary' and relay its size/license/Gated status to
+    the user before ever calling pull_dataset -- pulling consumes real
+    shared-cluster storage, and a gated dataset needs manual approval
+    first.
 
     Args:
-        dataset_repo_id: Hugging Face dataset repo id.
-        expected_columns: Column names the target model requires. If
-            omitted, this just reports the schema for manual comparison.
-        config: Dataset config/subset name. Defaults to the first available one.
-        split: Dataset split to check (default 'train').
+        dataset_repo_id: Hugging Face dataset repo id, e.g. 'GEAR-Dreams/DreamZero-DROID'.
+        view: 'summary' (default), 'rows', or 'file'.
+        filename: Required when view='file' -- exact path within the repo,
+            e.g. 'README.md' or 'meta/stats.json'.
+        offset: Row index to start from, only used when view='rows' (default 0).
+        length: Number of rows to fetch, only used when view='rows' (default 5, capped at 20).
+        config: Dataset config/subset name, used by 'summary'/'rows'. Defaults to the first available one.
+        split: Dataset split, used by 'summary'/'rows' (default 'train').
     """
+    if view == "summary":
+        return _dataset_info_summary(dataset_repo_id, config, split)
+    if view == "rows":
+        return _dataset_info_rows(dataset_repo_id, offset, length, config, split)
+    if view == "file":
+        if not filename:
+            return "view='file' requires a filename, e.g. 'README.md' or 'meta/stats.json'."
+        return _dataset_info_file(dataset_repo_id, filename)
+    return f"Unknown view '{view}'. Valid views: 'summary', 'rows', 'file'."
+
+
+def _validate_generic_schema(
+    dataset_repo_id: str,
+    expected_feature_keys: list[str] | None,
+    config: str | None,
+    split: str,
+) -> str:
     preview = _fetch_schema_preview(dataset_repo_id, config, split)
     if isinstance(preview, str):
         return preview
@@ -315,18 +302,18 @@ def validate_dataset_schema(
         f"Sample row: {preview['sample_row']}"
     )
 
-    if not expected_columns:
+    if not expected_feature_keys:
         return header
 
-    missing = [c for c in expected_columns if c not in actual_columns]
-    extra = sorted(actual_columns - set(expected_columns))
+    missing = [c for c in expected_feature_keys if c not in actual_columns]
+    extra = sorted(actual_columns - set(expected_feature_keys))
     if missing:
         return (
             f"{header}\n\n"
             f"INCOMPATIBLE: missing expected column(s) {missing}. "
             f"Present but unexpected: {extra or 'none'}."
         )
-    return f"{header}\n\nCOMPATIBLE: all expected columns {expected_columns} are present."
+    return f"{header}\n\nCOMPATIBLE: all expected columns {expected_feature_keys} are present."
 
 
 # Tied to the pi0.5 recipe's specific training mechanism (tools/finetune_recipes.py),
@@ -358,7 +345,7 @@ def split_dataset_repo_id(dataset_repo_id: str) -> tuple[str, str | None]:
 
 
 def _fetch_lerobot_info(dataset_repo_id: str) -> dict | str:
-    """Shared helper for validate_lerobot_dataset.
+    """Shared helper for validate_dataset's lerobot format.
     Returns the parsed meta/info.json, or an error string.
     """
     from huggingface_hub import hf_hub_download
@@ -395,58 +382,13 @@ def _count_camera_features(features: dict, substring: str) -> int:
     )
 
 
-@tool
-def validate_lerobot_dataset(
+def _validate_lerobot_dataset(
     dataset_repo_id: str,
-    expected_action_dim: int | None = None,
-    expected_exterior_cameras: int | None = None,
-    expected_wrist_cameras: int | None = None,
-    expected_feature_keys: list[str] | None = None,
+    expected_action_dim: int | None,
+    expected_exterior_cameras: int | None,
+    expected_wrist_cameras: int | None,
+    expected_feature_keys: list[str] | None,
 ) -> str:
-    """Check a robot-policy dataset's LeRobot-format metadata for
-    fine-tuning compatibility, without downloading it. Unlike
-    validate_dataset_schema (a generic flat-column check via the HF
-    datasets-server, which doesn't understand LeRobot's structure), this
-    reads the dataset's own meta/info.json directly -- action
-    dimensionality, camera/observation feature keys, fps, episode count,
-    and robot type all live there, not in flat "columns". Also checks the
-    LeRobot codebase_version for compatibility with this platform's current
-    fine-tuning recipe -- see LEROBOT_COMPATIBLE_VERSION_PREFIX (LeRobot's
-    dataset format versions are not compatible with each other, and which
-    one is required depends on the training mechanism a recipe uses, not a
-    fixed platform-wide fact).
-
-    Pass expected_action_dim/expected_exterior_cameras/expected_wrist_cameras
-    from the target model's documented requirements (see the datasets
-    skill) -- never guess or invent them. A dimension-count match alone is
-    necessary, not sufficient: it doesn't tell you whether the action
-    feature's actual physical meaning (joint position vs velocity vs
-    end-effector pose) matches what the target recipe expects -- see the
-    datasets skill's note on this for a real, confirmed example.
-
-    Note: expected_action_dim compares the RAW dataset's action feature
-    shape, not a model's internal (possibly padded/unified) action space --
-    e.g. pi0.5 internally uses a 32-dim action space but real DROID data's
-    raw action feature is 7-dim; the training pipeline's own input
-    transforms handle that conversion.
-
-    NEVER invent an expected_feature_keys value -- if you don't have one
-    documented for the target model or given by the user, omit it and read
-    the returned Features list yourself instead of asserting a match/mismatch.
-
-    Args:
-        dataset_repo_id: Hugging Face dataset repo id, e.g. 'lerobot/droid_100'.
-        expected_action_dim: Raw action feature dimensionality to check for.
-        expected_exterior_cameras: Number of exterior-camera features
-            expected (counts image/video features with 'exterior' in the
-            key name, regardless of exact spelling).
-        expected_wrist_cameras: Number of wrist-camera features expected
-            (same counting approach, for 'wrist').
-        expected_feature_keys: Exact LeRobot feature keys, only if you
-            already know them are correct for this exact dataset (e.g. the
-            user gave them, or you already fetched this dataset's own
-            Features list earlier this conversation) -- see warning above.
-    """
     info = _fetch_lerobot_info(dataset_repo_id)
     if isinstance(info, str):
         return info
@@ -510,6 +452,67 @@ def validate_lerobot_dataset(
         result += "\n\n" + "\n".join(checks)
 
     return result
+
+
+@tool
+def validate_dataset(
+    dataset_repo_id: str,
+    dataset_format: str = "lerobot",
+    expected_feature_keys: list[str] | None = None,
+    expected_action_dim: int | None = None,
+    expected_exterior_cameras: int | None = None,
+    expected_wrist_cameras: int | None = None,
+    config: str | None = None,
+    split: str = "train",
+) -> str:
+    """Check a Hugging Face dataset's compatibility with a target model's
+    expected input format, without downloading it. Two formats:
+    'lerobot' (default) reads the dataset's own meta/info.json for
+    robot-policy compatibility -- action dimensionality, camera counts,
+    feature keys, fps, episode count, and LeRobot codebase_version; use
+    this for robot-policy models. 'generic' checks flat column names via
+    the HF datasets-server instead -- use this for non-LeRobot data (e.g.
+    a video world model expecting 'video'/'caption' columns). See the
+    datasets skill for detailed guidance on which fields to pass for a
+    given target model, and why a dimension-count match alone isn't
+    sufficient proof of compatibility.
+
+    NEVER invent expected_action_dim/expected_exterior_cameras/
+    expected_wrist_cameras/expected_feature_keys from memory or general
+    knowledge of the model -- these are caller-supplied inputs this tool
+    trusts verbatim and echoes back in its verdict, so a wrong value you
+    supplied produces a confident-looking but false result. Omit a field
+    entirely and read the schema/Features list yourself if you don't have
+    a real value for it.
+
+    Args:
+        dataset_repo_id: Hugging Face dataset repo id.
+        dataset_format: 'lerobot' (default) or 'generic'.
+        expected_feature_keys: For 'lerobot', exact LeRobot feature keys.
+            For 'generic', the expected column names. Only pass values
+            documented for the target model or given directly by the user.
+        expected_action_dim: 'lerobot' only -- raw action feature
+            dimensionality to check for.
+        expected_exterior_cameras: 'lerobot' only -- number of
+            exterior-camera features expected (counts image/video features
+            with 'exterior' in the key name, regardless of exact spelling).
+        expected_wrist_cameras: 'lerobot' only -- number of wrist-camera
+            features expected (same counting approach, for 'wrist').
+        config: 'generic' only -- dataset config/subset name. Defaults to
+            the first available one.
+        split: 'generic' only -- dataset split to check (default 'train').
+    """
+    if dataset_format == "lerobot":
+        return _validate_lerobot_dataset(
+            dataset_repo_id,
+            expected_action_dim,
+            expected_exterior_cameras,
+            expected_wrist_cameras,
+            expected_feature_keys,
+        )
+    if dataset_format == "generic":
+        return _validate_generic_schema(dataset_repo_id, expected_feature_keys, config, split)
+    return f"Unknown dataset_format '{dataset_format}'. Valid formats: 'lerobot', 'generic'."
 
 
 @tool

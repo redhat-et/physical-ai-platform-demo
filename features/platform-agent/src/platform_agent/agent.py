@@ -10,10 +10,7 @@ from platform_agent.tools.hardware import list_cluster_gpus, estimate_model_foot
 from platform_agent.tools.manifests import generate_model_manifests
 from platform_agent.tools.datasets import (
     get_dataset_info,
-    get_dataset_rows,
-    get_dataset_file,
-    validate_dataset_schema,
-    validate_lerobot_dataset,
+    validate_dataset,
     pull_dataset,
     get_dataset_job_status,
     convert_dataset_to_v3,
@@ -56,10 +53,7 @@ TOOLS = [
     estimate_model_footprint,
     generate_model_manifests,
     get_dataset_info,
-    get_dataset_rows,
-    get_dataset_file,
-    validate_dataset_schema,
-    validate_lerobot_dataset,
+    validate_dataset,
     pull_dataset,
     get_dataset_job_status,
     convert_dataset_to_v3,
