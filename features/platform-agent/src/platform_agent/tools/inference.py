@@ -23,17 +23,17 @@ def call_model(
     model is scaled to zero, this will trigger it to scale up automatically
     and may take several minutes on the first request.
 
-    Before calling this on a model you haven't used before, call
-    get_model_status first to check its "Output kind" (chat, image, video,
-    or unsupported) and pass that value as output_kind here — models don't
-    all speak the same API. A model tagged "unsupported" has no compatible
-    endpoint and should not be called.
+    Before calling this on a model you haven't used before, check its
+    "Output kind" (chat, image, video, or unsupported) via the models
+    skill's CHECKING A SPECIFIC MODEL'S STATUS steps and pass that value as
+    output_kind here — models don't all speak the same API. A model tagged
+    "unsupported" has no compatible endpoint and should not be called.
 
     Args:
         model_name: The model to call (e.g. 'mocklm-echo', 'cosmos3-nano').
         prompt: The user's request/prompt to send to the model.
         output_kind: One of 'chat' (default), 'image', or 'video' — must
-            match the model's advertised output kind from get_model_status.
+            match the model's advertised output kind (see the models skill).
         max_tokens: Maximum tokens in the response, for output_kind='chat' only.
         num_frames: Number of video frames to generate, for output_kind='video' only.
         num_inference_steps: Denoising steps, for output_kind='video' only
@@ -52,9 +52,10 @@ def call_model(
         "call_model: unknown output_kind=%r requested for model=%r", output_kind, model_name
     )
     return (
-        f"Unknown output_kind '{output_kind}' for '{model_name}'. Call "
-        f"get_model_status first to find the correct output kind — if it "
-        f"says 'unsupported', this model has no compatible inference API.",
+        f"Unknown output_kind '{output_kind}' for '{model_name}'. Check the "
+        f"models skill's CHECKING A SPECIFIC MODEL'S STATUS steps to find "
+        f"the correct output kind — if it says 'unsupported', this model "
+        f"has no compatible inference API.",
         None,
     )
 
