@@ -8,6 +8,7 @@ export interface Message {
 export const API_BASE = "https://platform-agent-api-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com";
 
 const MESSAGES_STORAGE_KEY = "platform-agent-messages";
+const THREAD_ID_STORAGE_KEY = "platform-agent-thread-id";
 
 interface ConversationState {
   messages: Message[];
@@ -24,6 +25,23 @@ const loadStoredMessages = (): Message[] => {
   }
 };
 
+const loadOrCreateThreadId = (): string => {
+  try {
+    const existing = sessionStorage.getItem(THREAD_ID_STORAGE_KEY);
+    if (existing) return existing;
+  } catch {
+    // storage unavailable -- fall through to an ungenerated, unpersisted id
+  }
+  const id = crypto.randomUUID();
+  try {
+    sessionStorage.setItem(THREAD_ID_STORAGE_KEY, id);
+  } catch {
+    // storage unavailable (e.g. private browsing quota) -- id won't persist
+    // across reloads, but the current session still works
+  }
+  return id;
+};
+
 // Module-level so it survives the component unmounting/remounting as the
 // dashboard's router navigates away from and back to this tab — an in-flight
 // request keeps running and updating this state either way.
@@ -32,6 +50,8 @@ let state: ConversationState = {
   loading: false,
   statusText: "",
 };
+
+let threadId: string = loadOrCreateThreadId();
 
 const listeners = new Set<() => void>();
 
@@ -55,20 +75,28 @@ export const subscribe = (listener: () => void): (() => void) => {
 export const getSnapshot = (): ConversationState => state;
 
 export const clearMessages = (): void => {
+  // A reset means a genuinely new conversation server-side too -- otherwise
+  // the checkpointer would keep replaying the old thread's history (and
+  // whichever skill was last active in it) into a chat that looks empty.
+  threadId = crypto.randomUUID();
+  try {
+    sessionStorage.setItem(THREAD_ID_STORAGE_KEY, threadId);
+  } catch {
+    // storage unavailable -- the new id still applies for the rest of this session
+  }
   setState({ messages: [] });
 };
 
 export const sendMessage = async (text: string): Promise<void> => {
   if (!text || state.loading) return;
 
-  const history = [...state.messages];
   setState({ messages: [...state.messages, { role: "user", content: text }], loading: true, statusText: "" });
 
   try {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, history }),
+      body: JSON.stringify({ message: text, thread_id: threadId }),
       signal: AbortSignal.timeout(300000),
     });
     if (!res.ok) {
