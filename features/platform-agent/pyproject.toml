@@ -6,7 +6,10 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "langchain>=0.3",
+    # >=1.0 for langchain.agents.create_agent + langchain.agents.middleware
+    # (AgentMiddleware) -- agent.py's SkillScopedToolsMiddleware needs both;
+    # neither exists on the 0.3.x line.
+    "langchain>=1.0",
     "langchain-openai>=0.3",
     "langchain-mcp-adapters>=0.1",
     # mcp 2.0.0 (released 2026-07-28) moved/removed mcp.shared.context.RequestContext,
@@ -32,9 +35,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 # Explicit rather than relying on hatchling's default package auto-detection:
-# skills/<name>/SKILL.md files are fetched into src/platform_agent/skills/ at
-# build time by the Containerfile's skills stage rather than committed, and
-# the Containerfile's build context has no .git dir, so hatchling's default
-# VCS-aware file selection doesn't apply here.
+# each skill's SKILL.md *and* tools.py (plus, for fine_tuning, its
+# finetune_pipeline.py/finetune_recipes.py helper modules) are fetched into
+# src/platform_agent/skills/ at build time by the Containerfile's skills
+# stage rather than committed, and the Containerfile's build context has no
+# .git dir, so hatchling's default VCS-aware file selection doesn't apply
+# here.
 [tool.hatch.build.targets.wheel]
 packages = ["src/platform_agent"]

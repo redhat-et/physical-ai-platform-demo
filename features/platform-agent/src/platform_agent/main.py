@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from platform_agent import media_store
 from platform_agent.agent import build_agent
 from platform_agent.config import settings
-from platform_agent.tools.models import get_model_readiness, resume_scaling
+from platform_agent.model_readiness import get_model_readiness, resume_scaling
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ async def _stream_chat(messages: list[dict]):
                                 "url": f"/api/media/{artifact['media_id']}",
                             }
                             yield f"data: {json.dumps({'media': media})}\n\n"
-                elif node == "agent":
+                elif node == "model":
                     for msg in updates.get("messages", []):
                         tool_calls = getattr(msg, "tool_calls", None)
                         if tool_calls:
