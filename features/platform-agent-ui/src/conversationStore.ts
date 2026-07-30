@@ -53,6 +53,13 @@ let state: ConversationState = {
 
 let threadId: string = loadOrCreateThreadId();
 
+// Bumped on every clearMessages() so an in-flight sendMessage() from before
+// the reset can tell it's stale -- without this, a response that arrives
+// after the user clears the chat gets appended onto the now-empty
+// conversation, and its `finally` block would clobber the loading/statusText
+// state of whatever new message the user sent immediately after clearing.
+let conversationGeneration = 0;
+
 const listeners = new Set<() => void>();
 
 const setState = (patch: Partial<ConversationState>) => {
@@ -78,6 +85,7 @@ export const clearMessages = (): void => {
   // A reset means a genuinely new conversation server-side too -- otherwise
   // the checkpointer would keep replaying the old thread's history (and
   // whichever skill was last active in it) into a chat that looks empty.
+  conversationGeneration += 1;
   threadId = crypto.randomUUID();
   try {
     sessionStorage.setItem(THREAD_ID_STORAGE_KEY, threadId);
@@ -89,6 +97,13 @@ export const clearMessages = (): void => {
 
 export const sendMessage = async (text: string): Promise<void> => {
   if (!text || state.loading) return;
+
+  // Captured once, up front -- if clearMessages() runs while this request is
+  // still in flight, conversationGeneration moves on and every check below
+  // sees a mismatch, so a late response never lands in the reset (or a
+  // subsequent, different) conversation.
+  const generation = conversationGeneration;
+  const isStale = () => generation !== conversationGeneration;
 
   setState({ messages: [...state.messages, { role: "user", content: text }], loading: true, statusText: "" });
 
@@ -111,6 +126,11 @@ export const sendMessage = async (text: string): Promise<void> => {
     let pendingMedia: Message["media"] | undefined;
 
     while (true) {
+      if (isStale()) {
+        await reader.cancel();
+        return;
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -125,6 +145,7 @@ export const sendMessage = async (text: string): Promise<void> => {
 
         try {
           const data = JSON.parse(payload);
+          if (isStale()) continue;
           if (data.status) {
             setState({ statusText: data.status });
           } else if (data.media) {
@@ -148,6 +169,7 @@ export const sendMessage = async (text: string): Promise<void> => {
       }
     }
   } catch (err) {
+    if (isStale()) return;
     const msg = err instanceof Error ? err.message : "Unknown error";
     setState({
       messages: [
@@ -156,6 +178,8 @@ export const sendMessage = async (text: string): Promise<void> => {
       ],
     });
   } finally {
-    setState({ loading: false, statusText: "" });
+    if (!isStale()) {
+      setState({ loading: false, statusText: "" });
+    }
   }
 };

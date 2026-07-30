@@ -123,7 +123,7 @@ async def start_model():
     return {"status": "triggered"}
 
 
-async def _stream_chat(messages: list[dict], thread_id: str):
+async def _stream_chat(messages: list[dict], thread_id: str, disposable_thread: bool = False):
     response_text = ""
     tools_called = []
     # Full detail (name + args the LLM actually decided on, plus the raw tool
@@ -198,6 +198,14 @@ async def _stream_chat(messages: list[dict], thread_id: str):
     except Exception as e:
         logger.exception("agent stream failed")
         response_text = f"Agent error: {e}"
+    finally:
+        if disposable_thread:
+            # This thread_id was generated for this call alone and never
+            # handed back to the caller (see chat() below), so nothing can
+            # ever reference it again -- left alone, the checkpointer
+            # (agent.py::build_agent's InMemorySaver) would otherwise retain
+            # a permanent, never-reused entry for every such call forever.
+            agent.checkpointer.delete_thread(thread_id)
 
     yield f"data: {json.dumps({'response': response_text or 'No response.', 'tools_called': tools_called, 'tool_calls': tool_calls_detail})}\n\n"
     yield "data: [DONE]\n\n"
@@ -205,11 +213,12 @@ async def _stream_chat(messages: list[dict], thread_id: str):
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
+    disposable_thread = req.thread_id is None
     thread_id = req.thread_id or str(uuid.uuid4())
     messages = [{"role": "user", "content": req.message}]
 
     return StreamingResponse(
-        _stream_chat(messages, thread_id),
+        _stream_chat(messages, thread_id, disposable_thread=disposable_thread),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
