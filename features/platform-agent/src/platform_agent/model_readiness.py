@@ -2,15 +2,21 @@ from kubernetes import client
 
 from platform_agent.config import settings
 
+_custom_api = None
+_core_api = None
+
 
 def _get_k8s_client():
-    try:
+    global _custom_api, _core_api
+    if _custom_api is None:
         from kubernetes import config as k8s_config
-        k8s_config.load_incluster_config()
-    except Exception:
-        from kubernetes import config as k8s_config
-        k8s_config.load_kube_config()
-    return client.CustomObjectsApi(), client.CoreV1Api()
+        from kubernetes.config.config_exception import ConfigException
+        try:
+            k8s_config.load_incluster_config()
+        except ConfigException:
+            k8s_config.load_kube_config()
+        _custom_api, _core_api = client.CustomObjectsApi(), client.CoreV1Api()
+    return _custom_api, _core_api
 
 
 CRASH_REASONS = {"CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull", "InvalidImageName"}
@@ -129,5 +135,6 @@ def resume_scaling(model_name: str) -> None:
             name=scaler_name,
             body={"metadata": {"annotations": {"autoscaling.keda.sh/paused-replicas": None}}},
         )
-    except client.exceptions.ApiException:
-        pass
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            raise

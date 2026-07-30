@@ -46,10 +46,13 @@ def _discover_skill_tools() -> dict[str, list[BaseTool]]:
     """
     discovered: dict[str, list[BaseTool]] = {}
     for skill in all_skills().values():
+        module_name = f"platform_agent.skills.{skill.dir_name}.tools"
         try:
-            module = importlib.import_module(f"platform_agent.skills.{skill.dir_name}.tools")
-        except ModuleNotFoundError:
-            continue
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == module_name:
+                continue
+            raise
         discovered[skill.name] = [obj for obj in vars(module).values() if isinstance(obj, BaseTool)]
     return discovered
 
