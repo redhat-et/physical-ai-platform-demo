@@ -98,13 +98,21 @@ class SkillScopedToolsMiddleware(AgentMiddleware):
     skill (if any) is active.
     """
 
-    def wrap_model_call(self, request, handler):
+    @staticmethod
+    def _scope(request) -> None:
         active_names = {t.name for t in SKILL_TOOLS.get(_active_skill(request.messages), [])}
         request.tools = [
             t for t in request.tools
             if t.name not in _SKILL_SCOPED_TOOL_NAMES or t.name in active_names
         ]
+
+    def wrap_model_call(self, request, handler):
+        self._scope(request)
         return handler(request)
+
+    async def awrap_model_call(self, request, handler):
+        self._scope(request)
+        return await handler(request)
 
 
 def build_agent(use_tools: bool = True, extra_tools: list = ()):
