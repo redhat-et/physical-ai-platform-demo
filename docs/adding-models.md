@@ -38,18 +38,17 @@ Every model directory includes a `README.md` with at minimum:
   runtime, `## Deployment` otherwise).
 
 A robot-policy model with a real dataset-compatibility question — a
-fine-tuning recipe, or documented training data worth explaining — also
-gets a `## Dataset Compatibility` section. Use that exact heading text: the
-platform agent's `get_model_readme(model_name, section='Dataset Compatibility')`
-tool matches on it verbatim, and a typo'd heading just means the agent falls
-back to "no such section" instead of finding it. Don't add this section to
-a model with nothing to check a candidate dataset against (a stock chat/LLM
-model, a vision-only world model with no fine-tuning path) — the agent's
-tool already handles a missing section gracefully.
+fine-tuning recipe, or documented training data worth explaining — does
+NOT get this in its own README anymore. That content now lives in the
+platform agent's skills repo, under the `model-specs` skill's
+`references/<model_name>.md` (e.g. `references/pi05.md`), fetched via the
+`get_model_reference(model_name)` tool. Add or update a model's dataset
+compatibility spec there instead — this repo's model directories only
+cover Model Details / Serving / Deployment.
 
-When a real fine-tuning recipe exists, format the section as a table so it
-lines up with the `datasets` skill's own `DATASET COMPATIBILITY CHECKLIST`
-table row for row:
+When a real fine-tuning recipe exists, format the reference as a table so
+it lines up with the `datasets` skill's own `DATASET COMPATIBILITY
+CHECKLIST` table row for row:
 
 | # | Dimension | Priority | This model's specifics |
 |---|---|---|---|
@@ -62,13 +61,14 @@ Compatibility, Task Structure & Annotations, Scale & Composition,
 Environment & Task Diversity, Provenance/Identity & Licensing), so an agent
 reading both tables can match rows directly instead of re-deriving the
 correspondence. Priority is one of Critical / Adjustable / Minor, judged
-specifically for that model + recipe — see `platform/base/models/pi05/
-README.md` for the reasoning pattern (which facts are hard requirements vs.
-recipe flags vs. cosmetic) — not copied from another model's table.
+specifically for that model + recipe — see the skills repo's
+`references/pi05.md` for the reasoning pattern (which facts are hard
+requirements vs. recipe flags vs. cosmetic) — not copied from another
+model's table.
 
 A model with no real fine-tuning recipe (inference-only, or no dataset
 compatibility question to check) can use plain prose instead of the table —
-see `platform/base/models/dreamzero/README.md`, which documents training
+see the skills repo's `references/dreamzero.md`, which documents training
 data provenance without a checklist to evaluate candidates against.
 
 ## Wiring into an overlay
