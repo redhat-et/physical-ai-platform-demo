@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import BaseTool
+from langgraph.checkpoint.memory import InMemorySaver
 from openai import DefaultHttpxClient
 
 from platform_agent.config import settings
@@ -135,6 +136,7 @@ def build_agent(use_tools: bool = True, extra_tools: list = ()):
                 tools=[*TOOLS, *extra_tools],
                 system_prompt=SYSTEM_PROMPT,
                 middleware=[SkillScopedToolsMiddleware()],
+                checkpointer=InMemorySaver(),
             )
             return ("agent", agent)
         except Exception:
