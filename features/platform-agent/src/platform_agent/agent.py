@@ -62,6 +62,12 @@ SKILL_TOOLS: dict[str, list[BaseTool]] = _discover_skill_tools()
 # below is what actually narrows what the model sees on any given call.
 TOOLS = ALWAYS_AVAILABLE_TOOLS + [t for skill_tools in SKILL_TOOLS.values() for t in skill_tools]
 
+# Names of every tool that belongs to some skill -- the only tools
+# SkillScopedToolsMiddleware ever excludes. Anything else bound to the agent
+# (get_skill/list_skills, MCP tools, any future non-skill tool) is left
+# alone regardless of which skill is active.
+_SKILL_SCOPED_TOOL_NAMES = {t.name for skill_tools in SKILL_TOOLS.values() for t in skill_tools}
+
 
 def _active_skill(messages) -> str | None:
     """The most recent get_skill(name=...) call in the conversation, if any
@@ -79,18 +85,25 @@ def _active_skill(messages) -> str | None:
 
 
 class SkillScopedToolsMiddleware(AgentMiddleware):
-    """Narrows the tool schema sent to the model on every call to just the
-    always-available meta-tools (get_skill/list_skills) plus whichever
-    skill's tools match the most recent get_skill() call -- instead of
-    binding all tools across every skill unconditionally. This is the
+    """Narrows the tool schema sent to the model on every call to exclude
+    other skills' tools, based on the most recent get_skill() call -- instead
+    of binding all tools across every skill unconditionally. This is the
     LangChain-native substitute for Anthropic's server-side Tool Search Tool,
     which isn't reachable here since this agent talks to a self-hosted vLLM
     endpoint through an OpenAI-compatible client, not Anthropic's API.
+
+    Filters request.tools rather than rebuilding it, so anything not claimed
+    by a skill -- get_skill/list_skills, MCP tools loaded via main.py's
+    extra_tools, any future non-skill tool -- stays bound no matter which
+    skill (if any) is active.
     """
 
     def wrap_model_call(self, request, handler):
-        skill = _active_skill(request.messages)
-        request.tools = ALWAYS_AVAILABLE_TOOLS + SKILL_TOOLS.get(skill, [])
+        active_names = {t.name for t in SKILL_TOOLS.get(_active_skill(request.messages), [])}
+        request.tools = [
+            t for t in request.tools
+            if t.name not in _SKILL_SCOPED_TOOL_NAMES or t.name in active_names
+        ]
         return handler(request)
 
 
