@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   PageSection,
   Title,
@@ -24,6 +25,55 @@ import {
 
 const POLL_INTERVAL_MS = 10000;
 const SLOW_WARNING_MS = 8 * 60 * 1000;
+
+// react-markdown renders bare <table>/<th>/<td>/<ol>/<ul> with no styling
+// of their own, and PatternFly's base CSS reset zeroes margin/padding on
+// ol/ul/li (and strips list-style on ul) -- left alone, ordered-list
+// markers overflow past the chat bubble's edge instead of sitting inside
+// it, and tables render as an unbordered wall of text.
+const MARKDOWN_COMPONENTS = {
+  ol: ({ node, ...props }: any) => (
+    <ol style={{ paddingLeft: "1.4rem", margin: "0.4rem 0", listStyleType: "decimal" }} {...props} />
+  ),
+  ul: ({ node, ...props }: any) => (
+    <ul style={{ paddingLeft: "1.4rem", margin: "0.4rem 0", listStyleType: "disc" }} {...props} />
+  ),
+  li: ({ node, ...props }: any) => <li style={{ marginBottom: "0.2rem" }} {...props} />,
+  table: ({ node, ...props }: any) => (
+    <div style={{ overflowX: "auto", margin: "0.5rem 0" }}>
+      <table
+        style={{
+          borderCollapse: "collapse",
+          width: "100%",
+          fontSize: "0.9rem",
+        }}
+        {...props}
+      />
+    </div>
+  ),
+  th: ({ node, ...props }: any) => (
+    <th
+      style={{
+        border: "1px solid var(--pf-t--global--border--color--default)",
+        padding: "0.4rem 0.6rem",
+        textAlign: "left",
+        backgroundColor: "var(--pf-t--global--background--color--primary--default)",
+        fontWeight: 600,
+      }}
+      {...props}
+    />
+  ),
+  td: ({ node, ...props }: any) => (
+    <td
+      style={{
+        border: "1px solid var(--pf-t--global--border--color--default)",
+        padding: "0.4rem 0.6rem",
+        verticalAlign: "top",
+      }}
+      {...props}
+    />
+  ),
+};
 
 const PlatformAgent: React.FC = () => {
   const { messages, loading, statusText } = useSyncExternalStore(subscribe, getSnapshot);
@@ -185,7 +235,7 @@ const PlatformAgent: React.FC = () => {
                           msg.role === "user"
                             ? "#fff"
                             : "var(--pf-t--global--text--color--regular)",
-                        whiteSpace: "pre-wrap",
+                        whiteSpace: msg.role === "user" ? "pre-wrap" : undefined,
                         wordBreak: "break-word",
                       }}
                     >
@@ -195,7 +245,9 @@ const PlatformAgent: React.FC = () => {
                         </div>
                       )}
                       {msg.role === "assistant" ? (
-                        <Markdown>{msg.content}</Markdown>
+                        <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                          {msg.content}
+                        </Markdown>
                       ) : (
                         msg.content
                       )}
