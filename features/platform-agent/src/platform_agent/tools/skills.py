@@ -17,16 +17,9 @@ class Skill:
     name: str
     description: str
     body: str
-    # The on-disk package directory this skill was loaded from (e.g.
-    # "deploy_checkpoint"), which is not always `name` verbatim (that's the
-    # frontmatter field, e.g. "deploy-checkpoint" -- directory names can't
-    # contain hyphens and be importable). Callers that need to import a
-    # skill's tools.py (agent.py's tool auto-discovery) need this to build
-    # the module path; nothing about get_skill()/list_skills() needs it.
-    dir_name: str
 
 
-def _parse_skill_file(text: str, filename: str, dir_name: str) -> Skill:
+def _parse_skill_file(text: str, filename: str) -> Skill:
     """Parse a skill .md file's leading '---'-delimited YAML frontmatter
     (name, description) plus its markdown body. Takes raw text rather than
     a path so it's directly unit-testable with string literals.
@@ -39,7 +32,7 @@ def _parse_skill_file(text: str, filename: str, dir_name: str) -> Skill:
     for field in ("name", "description"):
         if not meta.get(field):
             raise ValueError(f"{filename}: frontmatter missing required '{field}' field")
-    return Skill(name=meta["name"], description=meta["description"], body=body.strip(), dir_name=dir_name)
+    return Skill(name=meta["name"], description=meta["description"], body=body.strip())
 
 
 @lru_cache(maxsize=1)
@@ -50,22 +43,11 @@ def _load_skills() -> dict[str, Skill]:
         skill_file = entry / "SKILL.md"
         if not entry.is_dir() or not skill_file.is_file():
             continue
-        skill = _parse_skill_file(
-            skill_file.read_text(encoding="utf-8"), f"{entry.name}/SKILL.md", entry.name
-        )
+        skill = _parse_skill_file(skill_file.read_text(encoding="utf-8"), f"{entry.name}/SKILL.md")
         if skill.name in skills:
             raise ValueError(f"duplicate skill name '{skill.name}' (in {entry.name})")
         skills[skill.name] = skill
     return skills
-
-
-def all_skills() -> dict[str, Skill]:
-    """Every discovered skill, keyed by its SKILL.md frontmatter name (the
-    same keys get_skill()/list_skills() use). For callers outside this
-    module that need more than the rendered index -- currently agent.py's
-    per-skill tools.py auto-discovery, via each Skill's dir_name.
-    """
-    return _load_skills()
 
 
 def skills_index() -> str:
