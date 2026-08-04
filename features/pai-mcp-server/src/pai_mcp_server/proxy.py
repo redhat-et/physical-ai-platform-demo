@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-from contextlib import AsyncExitStack
 
+import anyio
 import mcp.types as types
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -19,42 +18,48 @@ class DownstreamProxy:
     `k8s_` prefix so agents reach it exclusively through this server's one
     connection instead of dialing it directly.
 
-    Connects lazily on first use rather than via a server lifespan hook:
-    the low-level mcp.server.Server's lifespan context is scoped per
-    client *session*, not per process, so tying the proxy's connection to
-    it would reconnect (or misbehave) on every new agent session. A
-    lazily-created, lock-guarded singleton tied to this process's single
-    event loop (see server.py's anyio.run) is simpler and correct
-    regardless of how many sessions the transport creates.
+    run() must be started exactly once, as a background task in the same
+    top-level anyio task group the HTTP server itself runs under (see
+    server.py's main()) -- NOT connected lazily on first use from inside a
+    per-request handler. anyio task groups/cancel scopes are tied to the
+    task that created them: opening this connection inside one request's
+    handler task and then reusing it from a later, unrelated request's
+    handler task corrupts the whole MCP session (observed live against a
+    real cluster: "Attempted to exit a cancel scope that isn't the current
+    task's current cancel scope", right after an otherwise-successful
+    call). Every other method here only reads/uses state `run()` maintains;
+    none of them open the connection themselves.
     """
 
     def __init__(self) -> None:
-        self._stack: AsyncExitStack | None = None
         self._session: ClientSession | None = None
         self._tools_by_prefixed_name: dict[str, types.Tool] = {}
-        self._lock = asyncio.Lock()
 
-    async def _ensure_connected(self) -> None:
-        if self._session is not None:
-            return
-        async with self._lock:
-            if self._session is not None:
-                return
-            # Deliberately no try/except-and-aclose around this: closing a
-            # streamablehttp_client generator after it's already failed
-            # internally (e.g. connection refused mid-task-group) raises its
-            # own "asynchronous generator is already running" error instead
-            # of the original one. On failure we just drop `stack`
-            # unentered-on-self and let the next call build a fresh one.
-            stack = AsyncExitStack()
-            read, write, _ = await stack.enter_async_context(
-                streamablehttp_client(settings.openshift_mcp_url)
-            )
-            session = await stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            self._stack = stack
-            self._session = session
-            await self._refresh_tools()
+    async def run(self) -> None:
+        delay = 1
+        while True:
+            try:
+                async with streamablehttp_client(settings.openshift_mcp_url) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        self._session = session
+                        await self._refresh_tools()
+                        logger.info(
+                            "connected to openshift-mcp-server at %s (%d tool(s) proxied)",
+                            settings.openshift_mcp_url, len(self._tools_by_prefixed_name),
+                        )
+                        delay = 1
+                        await anyio.sleep_forever()
+            except Exception:
+                logger.exception(
+                    "openshift-mcp-server connection lost/unavailable at %s -- retrying in %ds",
+                    settings.openshift_mcp_url, delay,
+                )
+            finally:
+                self._session = None
+                self._tools_by_prefixed_name = {}
+            await anyio.sleep(delay)
+            delay = min(delay * 2, 30)
 
     async def _refresh_tools(self) -> None:
         result = await self._session.list_tools()
@@ -65,29 +70,19 @@ class DownstreamProxy:
             for tool in result.tools
         }
 
-    async def list_proxied_tools(self) -> list[types.Tool]:
-        try:
-            await self._ensure_connected()
-        # A refused connection surfaces here as asyncio.CancelledError, not a
-        # plain Exception: streamablehttp_client's internal anyio task group
-        # cancels its sibling receive-task when the POST task fails, and
-        # that cancellation is *of our own nested task group*, not an
-        # external shutdown signal to this coroutine -- safe to swallow.
-        except (Exception, asyncio.CancelledError):
-            logger.exception(
-                "openshift-mcp-server unreachable at %s -- k8s_* tools unavailable this call",
-                settings.openshift_mcp_url,
-            )
-            return []
+    def list_proxied_tools(self) -> list[types.Tool]:
+        """Whatever's currently available -- empty if openshift-mcp-server
+        is down or hasn't connected yet. Synchronous: just reads state
+        run() maintains, no I/O of its own.
+        """
         return list(self._tools_by_prefixed_name.values())
 
-    async def handles(self, name: str) -> bool:
-        if not self._tools_by_prefixed_name:
-            await self.list_proxied_tools()
+    def handles(self, name: str) -> bool:
         return name in self._tools_by_prefixed_name
 
     async def call(self, name: str, arguments: dict) -> list[types.ContentBlock]:
-        await self._ensure_connected()
+        if self._session is None:
+            raise RuntimeError(f"openshift-mcp-server is currently unavailable -- cannot call '{name}'")
         downstream_name = name[len(settings.k8s_tool_prefix):]
         result = await self._session.call_tool(downstream_name, arguments)
         return result.content

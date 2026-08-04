@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import anyio
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
@@ -94,12 +95,12 @@ _NATIVE_TOOLS = [_LIST_SKILLS_TOOL, _LOAD_SKILL_TOOL, _GET_SCRIPT_TOOL, _RUN_SCR
 
 @_server.list_tools()
 async def list_tools() -> list[types.Tool]:
-    return _NATIVE_TOOLS + await _proxy.list_proxied_tools()
+    return _NATIVE_TOOLS + _proxy.list_proxied_tools()
 
 
 @_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> dict | list[types.ContentBlock]:
-    if await _proxy.handles(name):
+    if _proxy.handles(name):
         return await _proxy.call(name, arguments)
 
     if name == "list_skills":
@@ -127,9 +128,15 @@ async def call_tool(name: str, arguments: dict) -> dict | list[types.ContentBloc
     raise ValueError(f"Unknown tool '{name}'")
 
 
+async def _run() -> None:
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_proxy.run)
+        await app.run_streamable_http_async()
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    app.run(transport="streamable-http")
+    anyio.run(_run)
 
 
 if __name__ == "__main__":
