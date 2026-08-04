@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from contextlib import asynccontextmanager
 
@@ -24,16 +25,54 @@ agent = None
 
 
 MCP_SERVER_URL = "http://localhost:8080/mcp"
-# initContainers ordering (platform/base/agent/deployment.yaml) guarantees the
-# sidecar's TCP port is accepting connections before this container even
-# starts, but a bare tcpSocket readiness probe doesn't guarantee the MCP
-# server has finished initializing enough to serve a real request -- and if
-# it ever restarts after this process's one-shot startup (OOM, crash, node
-# hiccup), there's no other retry point. Bounded backoff here covers both,
-# without blocking FastAPI startup indefinitely if the sidecar is genuinely
-# unreachable (e.g. local dev via `make run`, which has no sidecar at all).
 MCP_CONNECT_RETRIES = 5
 MCP_CONNECT_BACKOFF_SECONDS = 2  # doubles each attempt: 2, 4, 8, 16 (~30s worst case)
+
+_SCRIPT_PATH_RE = re.compile(r"[\w\-./]+\.(?:py|sh)\b")
+
+
+def _classify_tool_call(name: str, args: dict | None) -> tuple[str, str]:
+    """(category, label) for a tool call. category is 'skill' for a get_skill
+    lookup, or 'used' for anything that actually ran (a skill's shell script,
+    an MCP cluster tool, or any other tool) -- lets the UI say 'Loaded
+    Skill: X' vs 'Used: Y' instead of the meaningless raw tool name for
+    skills (every skill's every script runs through the same generic 'shell'
+    tool). Every other tool name (list_skills, resources_list, pods_log, ...)
+    is kept as-is -- unlike 'shell'/'get_skill', the name itself already says
+    what ran.
+    """
+    args = args or {}
+    if name == "get_skill":
+        return "skill", args.get("name", "?")
+    if name == "shell":
+        command = (args.get("command") or "").strip()
+        if not command:
+            return "used", "Shell restart"
+        scripts = _SCRIPT_PATH_RE.findall(command)
+        if scripts:
+            return "used", scripts[-1].rsplit("/", 1)[-1]
+        return "used", command.splitlines()[0][:60]
+    return "used", name
+
+
+def _summarize_tool_calls(tool_calls_detail: list[dict]) -> list[str]:
+    """Collapse a turn's tool calls into at most two entries -- 'Loaded
+    Skill: ...' and/or 'Used: ...' -- deduped and order-preserving, present
+    only when that category actually occurred this turn.
+    """
+    skills: list[str] = []
+    used: list[str] = []
+    for call in tool_calls_detail:
+        category, label = _classify_tool_call(call.get("name"), call.get("args"))
+        bucket = skills if category == "skill" else used
+        if label not in bucket:
+            bucket.append(label)
+    summary = []
+    if skills:
+        summary.append(f"Loaded Skill: {', '.join(skills)}")
+    if used:
+        summary.append(f"Used: {', '.join(used)}")
+    return summary
 
 
 async def _load_mcp_tools() -> list:
@@ -125,10 +164,6 @@ async def start_model():
 
 async def _stream_chat(messages: list[dict], thread_id: str, disposable_thread: bool = False):
     response_text = ""
-    tools_called = []
-    # Full detail (name + args the LLM actually decided on, plus the raw tool
-    # result) for callers that need to verify more than just "a tool with
-    # this name ran somewhere" -- e.g. tests asserting on tool arguments.
     tool_calls_detail = []
     try:
         async for chunk in agent.astream(
@@ -140,8 +175,14 @@ async def _stream_chat(messages: list[dict], thread_id: str, disposable_thread: 
                 if node == "tools":
                     for tm in updates.get("messages", []):
                         name = getattr(tm, "name", "tool")
-                        tools_called.append(name)
-                        yield f"data: {json.dumps({'status': f'Calling {name}...'})}\n\n"
+                        tool_call_id = getattr(tm, "tool_call_id", None)
+                        call = next(
+                            (c for c in tool_calls_detail if c.get("tool_call_id") == tool_call_id),
+                            None,
+                        )
+                        category, label = _classify_tool_call(name, call.get("args") if call else None)
+                        status_text = f"Loaded Skill: {label}..." if category == "skill" else f"Used: {label}..."
+                        yield f"data: {json.dumps({'status': status_text})}\n\n"
                         content = getattr(tm, "content", "")
                         logger.info(
                             "tool result: name=%s status=%s",
@@ -156,11 +197,8 @@ async def _stream_chat(messages: list[dict], thread_id: str, disposable_thread: 
                             name,
                             str(content)[:300],
                         )
-                        tool_call_id = getattr(tm, "tool_call_id", None)
-                        for call in tool_calls_detail:
-                            if call.get("tool_call_id") == tool_call_id:
-                                call["result"] = content if isinstance(content, str) else str(content)
-                                break
+                        if call is not None:
+                            call["result"] = content if isinstance(content, str) else str(content)
                         artifact = getattr(tm, "artifact", None)
                         if isinstance(artifact, dict) and artifact.get("media_id"):
                             media = {
@@ -200,13 +238,9 @@ async def _stream_chat(messages: list[dict], thread_id: str, disposable_thread: 
         response_text = f"Agent error: {e}"
     finally:
         if disposable_thread:
-            # This thread_id was generated for this call alone and never
-            # handed back to the caller (see chat() below), so nothing can
-            # ever reference it again -- left alone, the checkpointer
-            # (agent.py::build_agent's InMemorySaver) would otherwise retain
-            # a permanent, never-reused entry for every such call forever.
             agent.checkpointer.delete_thread(thread_id)
 
+    tools_called = _summarize_tool_calls(tool_calls_detail)
     yield f"data: {json.dumps({'response': response_text or 'No response.', 'tools_called': tools_called, 'tool_calls': tool_calls_detail})}\n\n"
     yield "data: [DONE]\n\n"
 

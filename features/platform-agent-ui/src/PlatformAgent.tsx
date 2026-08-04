@@ -241,7 +241,7 @@ const PlatformAgent: React.FC = () => {
                     >
                       {msg.role === "assistant" && msg.toolsCalled && msg.toolsCalled.length > 0 && (
                         <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "var(--pf-t--global--text--color--subtle)" }}>
-                          Used: {msg.toolsCalled.join(", ")}
+                          {msg.toolsCalled.join(", ")}
                         </div>
                       )}
                       {msg.role === "assistant" ? (
