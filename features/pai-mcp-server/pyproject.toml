@@ -1,0 +1,23 @@
+[project]
+name = "pai-mcp-server"
+version = "0.1.0"
+description = "MCP gateway serving the platform skill catalog and proxying openshift-mcp-server's generic cluster tools behind a single agent-facing endpoint"
+requires-python = ">=3.11"
+dependencies = [
+    # mcp 2.0.0 (released 2026-07-28) moved/removed mcp.shared.context.RequestContext;
+    # pinned <2.0 to match features/platform-agent until downstream compatibility is confirmed.
+    "mcp<2.0",
+    "pyyaml>=6.0",
+    "pydantic-settings>=2.0",
+    "uvicorn[standard]>=0.34",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Explicit rather than relying on hatchling's default package auto-detection:
+# skill content (SKILL.md + scripts/) is fetched into src/pai_mcp_server/skills/
+# at build time by the Containerfile's skills stage rather than committed.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pai_mcp_server"]

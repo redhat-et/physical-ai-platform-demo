@@ -1,0 +1,198 @@
+---
+# Everything skill scripts and k8s_* passthrough calls need to manage
+# models, datasets, and pipelines -- re-homed from platform-agent's SA,
+# which now only keeps the narrow Role it needs for its own UI-facing
+# readiness/scaling endpoints (see platform/base/agent/rbac.yaml).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pai-mcp-server
+  namespace: physical-ai-models
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices", "servingruntimes"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["externalmodels", "maasmodelrefs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["http.keda.sh"]
+    resources: ["httpscaledobjects"]
+    verbs: ["get", "list", "create", "patch", "delete"]
+  - apiGroups: ["keda.sh"]
+    resources: ["scaledobjects"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server
+  namespace: physical-ai-models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pai-mcp-server
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# Read access to MaaS subscriptions and auth policies
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pai-mcp-server
+  namespace: models-as-a-service
+rules:
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["maassubscriptions", "maasauthpolicies"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server
+  namespace: models-as-a-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pai-mcp-server
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# Read access to infra namespace + Tekton pipeline execution + fine-tuning dataset/checkpoint PVC and Job management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pai-mcp-server
+  namespace: physical-ai
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines", "tasks"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns"]
+    verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pai-mcp-server
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# DSPA API access for triggering/polling fine-tuning pipeline runs (Role is operator-managed, not defined in this repo)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server-dspa-access
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ds-pipeline-user-access-dspa
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# MLflow's kubernetes-auth app authorizes requests via a SelfSubjectAccessReview against this synthetic resource.
+# pipeline-runner-dspa keeps its own binding untouched -- unrelated to this migration.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server-mlflow-experiments-access
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mlflow-experiments-access
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# Read access to ArgoCD application status
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pai-mcp-server
+  namespace: openshift-gitops
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-mcp-server
+  namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pai-mcp-server
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+# Cluster-scoped access for Prometheus metrics queries and GPU inventory
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pai-mcp-server-metrics-reader
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  - nonResourceURLs: ["/api/v1/query", "/api/v1/query_range"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pai-mcp-server-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pai-mcp-server-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai

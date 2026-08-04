@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pai-mcp-server
+  namespace: physical-ai
+  labels:
+    app: pai-mcp-server
+spec:
+  selector:
+    app: pai-mcp-server
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP

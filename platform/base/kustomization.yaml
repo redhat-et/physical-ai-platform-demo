@@ -13,3 +13,4 @@ resources:
   - pipelines/
   - robotics-playground/
   - robotics-playground-backend/
+  - pai-mcp/

@@ -1,0 +1,15 @@
+FROM registry.access.redhat.com/ubi9/python-311:latest
+
+WORKDIR /opt/app-root/src
+
+COPY pyproject.toml .
+COPY src/ src/
+
+RUN pip install --no-cache-dir .
+
+EXPOSE 8081
+
+# PAI_MCP_SKILLS_ROOT must point at a volume kept current by a git-sync
+# sidecar (see platform/base/skills-mcp/deployment.yaml) -- this image
+# never bundles skill content itself.
+CMD ["python", "-m", "pai_mcp_server"]
