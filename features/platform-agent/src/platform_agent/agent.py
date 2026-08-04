@@ -1,4 +1,10 @@
+<<<<<<< Updated upstream
 import importlib
+=======
+import os
+import sys
+from pathlib import Path
+>>>>>>> Stashed changes
 
 import httpx
 from langchain.agents import create_agent
@@ -12,6 +18,8 @@ from openai import DefaultHttpxClient
 
 from platform_agent.config import settings
 from platform_agent.tools.skills import all_skills, get_skill, list_skills
+
+_SHELL_ENV = {**os.environ, "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ.get("PATH", "")])}
 
 # Deduped, order-preserving -- infra_namespace and datasets_namespace are
 # both "physical-ai" today but aren't guaranteed to stay that way, and this
@@ -30,6 +38,7 @@ SYSTEM_PROMPT = (
     .replace("{namespaces}", _NAMESPACES)
 )
 
+<<<<<<< Updated upstream
 # get_skill/list_skills are always bound -- they're how the agent finds and
 # loads a skill in the first place, so SkillScopedToolsMiddleware can't wait
 # for one of them to be called before making them available.
@@ -117,6 +126,9 @@ class SkillScopedToolsMiddleware(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         self._scope(request)
         return await handler(request)
+=======
+TOOLS = [get_skill, list_skills]
+>>>>>>> Stashed changes
 
 
 def build_agent(use_tools: bool = True, extra_tools: list = ()):
@@ -135,7 +147,16 @@ def build_agent(use_tools: bool = True, extra_tools: list = ()):
                 llm,
                 tools=[*TOOLS, *extra_tools],
                 system_prompt=SYSTEM_PROMPT,
+<<<<<<< Updated upstream
                 middleware=[SkillScopedToolsMiddleware()],
+=======
+                middleware=[
+                    ShellToolMiddleware(
+                        execution_policy=HostExecutionPolicy(),
+                        env={**_SHELL_ENV, "SKILLS_ROOT": settings.skills_root},
+                    ),
+                ],
+>>>>>>> Stashed changes
                 checkpointer=InMemorySaver(),
             )
             return ("agent", agent)
