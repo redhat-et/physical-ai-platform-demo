@@ -121,7 +121,7 @@ async def call_tool(name: str, arguments: dict) -> dict | list[types.ContentBloc
 
     if name == "run_script":
         try:
-            return executor.run_script(arguments["skill"], arguments["script"], arguments.get("args", {}))
+            return await executor.run_script(arguments["skill"], arguments["script"], arguments.get("args", {}))
         except (KeyError, ValueError, ScriptError) as exc:
             raise ValueError(str(exc)) from exc
 

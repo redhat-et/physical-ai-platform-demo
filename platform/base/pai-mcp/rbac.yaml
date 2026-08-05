@@ -169,7 +169,7 @@ subjects:
     name: pai-mcp-server
     namespace: physical-ai
 ---
-# Cluster-scoped access for Prometheus metrics queries and GPU inventory
+# Cluster-scoped access for node/namespace inventory (GPU capacity).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -181,8 +181,6 @@ rules:
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list"]
-  - nonResourceURLs: ["/api/v1/query", "/api/v1/query_range"]
-    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -192,6 +190,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: pai-mcp-server-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: pai-mcp-server
+    namespace: physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pai-mcp-server-monitoring-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
 subjects:
   - kind: ServiceAccount
     name: pai-mcp-server

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import subprocess
+import anyio
 
 from pai_mcp_server import skills
 from pai_mcp_server.config import settings
@@ -74,27 +74,29 @@ def get_script_meta(skill_name: str, script_name: str) -> ScriptMeta:
     return parse_script_header(path.read_text(encoding="utf-8"), f"{skill_name}/scripts/{script_name}")
 
 
-def run_script(skill_name: str, script_name: str, args: dict) -> dict:
+async def run_script(skill_name: str, script_name: str, args: dict) -> dict:
     """Executes a skill script server-side after validating `args` against
     its declared header. Scripts must be executable with a shebang; invoked
     directly (no shell=True) so argument values can never be interpreted as
     shell syntax.
+
+    Runs via anyio's native async subprocess support, not subprocess.run --
+    this whole server is a single-threaded event loop shared by every
+    connected agent (see server.py's call_tool and proxy.py's DownstreamProxy
+    background task), so a blocking subprocess.run call here would freeze
+    every other in-flight request for up to script_timeout_seconds.
     """
     path = skills.script_path(skill_name, script_name)
     meta = parse_script_header(path.read_text(encoding="utf-8"), f"{skill_name}/scripts/{script_name}")
     validated = _validate_args(meta, args or {})
     argv = _build_argv(str(path), validated, meta)
     try:
-        completed = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            timeout=settings.script_timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
+        with anyio.fail_after(settings.script_timeout_seconds):
+            completed = await anyio.run_process(argv, check=False)
+    except TimeoutError as exc:
         raise ScriptError(f"script timed out after {settings.script_timeout_seconds}s") from exc
     return {
         "exit_code": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
+        "stdout": completed.stdout.decode(errors="replace"),
+        "stderr": completed.stderr.decode(errors="replace"),
     }

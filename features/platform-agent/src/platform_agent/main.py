@@ -103,7 +103,7 @@ async def _load_mcp_tools() -> list:
 async def lifespan(app: FastAPI):
     global agent_mode, agent
     mcp_tools = await _load_mcp_tools()
-    agent_mode, agent = build_agent(use_tools=True, extra_tools=mcp_tools)
+    agent_mode, agent = build_agent(extra_tools=mcp_tools)
     print(f"Agent started in '{agent_mode}' mode with {len(mcp_tools)} MCP tool(s)")
     yield
 
