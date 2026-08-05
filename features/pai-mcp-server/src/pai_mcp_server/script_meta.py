@@ -53,12 +53,23 @@ def parse_script_header(text: str, filename: str) -> ScriptMeta:
     if not match:
         raise ValueError(f"{filename}: missing '# ---' metadata header block")
     raw_yaml = _COMMENT_PREFIX_RE.sub("", match.group(1))
-    meta = yaml.safe_load(raw_yaml) or {}
+    try:
+        meta = yaml.safe_load(raw_yaml) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{filename}: header is not valid YAML: {exc}") from exc
+    if not isinstance(meta, dict):
+        raise ValueError(f"{filename}: header YAML must be a mapping, got {type(meta).__name__}")
     if not meta.get("description"):
         raise ValueError(f"{filename}: header missing required 'description' field")
 
+    raw_params = meta.get("parameters", []) or []
+    if not isinstance(raw_params, list):
+        raise ValueError(f"{filename}: 'parameters' must be a list, got {type(raw_params).__name__}")
+
     params: list[ScriptParam] = []
-    for raw_param in meta.get("parameters", []) or []:
+    for raw_param in raw_params:
+        if not isinstance(raw_param, dict):
+            raise ValueError(f"{filename}: each parameter must be a mapping, got {type(raw_param).__name__}")
         for required_field in ("name", "type"):
             if not raw_param.get(required_field):
                 raise ValueError(f"{filename}: parameter missing required '{required_field}' field")

@@ -20,10 +20,6 @@ spec:
         - name: skills-repo
           emptyDir: {}
       initContainers:
-        # Native sidecar (restartPolicy: Always, K8s 1.28+) -- keeps
-        # /skills-repo/current current on an interval. Skill content updates
-        # take effect here with no rebuild or redeploy of this Deployment;
-        # only this container's own image/args change requires one.
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.2.4
           restartPolicy: Always
@@ -42,9 +38,6 @@ spec:
               memory: 64Mi
             limits:
               memory: 128Mi
-        # Relocated from platform-agent's pod -- generic k8s_* passthrough
-        # tools are proxied through this server's single connection instead
-        # of agents dialing openshift-mcp-server directly (see proxy.py).
         - name: mcp-server
           image: quay.io/redhat-et/openshift-mcp-server:latest
           imagePullPolicy: Always
@@ -76,6 +69,14 @@ spec:
           env:
             - name: PAI_MCP_SKILLS_ROOT
               value: /skills-repo/current/skills
+            - name: DATASETS_NAMESPACE
+              value: physical-ai
+            - name: MODELS_NAMESPACE
+              value: physical-ai-models
+            - name: HOME
+              value: /tmp
+            - name: HF_HOME
+              value: /tmp/hf_home
           volumeMounts:
             - name: skills-repo
               mountPath: /skills-repo

@@ -20,6 +20,10 @@ def _coerce(value, param_type: str):
         return float(value)
     if param_type == "boolean":
         return bool(value)
+    if param_type == "array":
+        if not isinstance(value, list):
+            raise TypeError(f"expected a list, got {type(value).__name__}")
+        return [str(item) for item in value]
     return str(value)
 
 
@@ -45,15 +49,21 @@ def _validate_args(meta: ScriptMeta, args: dict) -> dict:
 
 def _build_argv(script_file: str, validated: dict, meta: ScriptMeta) -> list[str]:
     """Named args become long flags (--name value; bare --name for a true
-    boolean) rather than positional args, so scripts have a stable,
+    boolean; --name item1 item2 ... for an array, matching argparse's
+    nargs="*") rather than positional args, so scripts have a stable,
     self-documenting argv contract regardless of parameter order.
     """
     declared = {p.name: p for p in meta.parameters}
     argv = [script_file]
     for name, value in validated.items():
-        if declared[name].type == "boolean":
+        param_type = declared[name].type
+        if param_type == "boolean":
             if value:
                 argv.append(f"--{name}")
+        elif param_type == "array":
+            if value:
+                argv.append(f"--{name}")
+                argv.extend(value)
         else:
             argv.extend([f"--{name}", str(value)])
     return argv
