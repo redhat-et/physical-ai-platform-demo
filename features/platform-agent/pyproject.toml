@@ -6,9 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    # >=1.0 for langchain.agents.create_agent + langchain.agents.middleware
-    # (AgentMiddleware) -- agent.py's SkillScopedToolsMiddleware needs both;
-    # neither exists on the 0.3.x line.
+    # >=1.0 for langchain.agents.create_agent -- doesn't exist on the 0.3.x line.
     "langchain>=1.0",
     "langchain-openai>=0.3",
     "langchain-mcp-adapters>=0.1",
@@ -16,16 +14,13 @@ dependencies = [
     # breaking langchain-mcp-adapters' import of it. Pin to the compatible 1.x line
     # until langchain-mcp-adapters confirms mcp 2.0 support.
     "mcp<2.0",
-    # kfp==2.17.0 hard-pins kubernetes<31 -- confirmed none of our own K8s
-    # client usage (CoreV1Api/BatchV1Api/CustomObjectsApi/AppsV1Api) needs
-    # anything specific to 31+, so relaxed to what's actually installable
-    # alongside kfp rather than fighting its pin.
+    # Only for model_readiness.py's direct CoreV1Api/CustomObjectsApi reads
+    # (InferenceService/pod status, KEDA ScaledObject patch) -- everything
+    # else that used to need cluster access here now goes through
+    # pai-mcp-server instead.
     "kubernetes>=30.1,<31.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
-    "huggingface_hub>=0.27",
-    "kfp>=2.17,<3.0",
-    "kfp-kubernetes>=2.17,<3.0",
     "httpx>=0.28",
     "pyyaml>=6.0",
 ]
@@ -35,11 +30,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 # Explicit rather than relying on hatchling's default package auto-detection:
-# each skill's SKILL.md *and* tools.py (plus, for fine_tuning, its
-# finetune_pipeline.py/finetune_recipes.py helper modules) are fetched into
-# src/platform_agent/skills/ at build time by the Containerfile's skills
-# stage rather than committed, and the Containerfile's build context has no
-# .git dir, so hatchling's default VCS-aware file selection doesn't apply
-# here.
+# the Containerfile's build context has no .git dir, so hatchling's default
+# VCS-aware file selection doesn't apply here.
 [tool.hatch.build.targets.wheel]
 packages = ["src/platform_agent"]

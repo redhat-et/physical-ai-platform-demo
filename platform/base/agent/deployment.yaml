@@ -16,27 +16,9 @@ spec:
         app: platform-agent
     spec:
       serviceAccountName: platform-agent
-      initContainers:
-        - name: mcp-server
-          image: quay.io/redhat-et/openshift-mcp-server:latest
-          imagePullPolicy: Always
-          restartPolicy: Always
-          args: ["--port", "8080", "--toolsets=core"]
-          ports:
-            - name: mcp
-              containerPort: 8080
-              protocol: TCP
-          readinessProbe:
-            tcpSocket:
-              port: mcp
-            initialDelaySeconds: 3
-            periodSeconds: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              memory: 256Mi
+      # openshift-mcp-server relocated to pai-mcp-server's pod -- this
+      # pod now only reaches it (and pai-mcp-server's own native tools)
+      # over the network via pai-mcp-server's Service, never colocated.
       containers:
         - name: agent
           image: quay.io/redhat-et/physical-ai-agent:latest

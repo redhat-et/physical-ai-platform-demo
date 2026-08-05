@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from pydantic_settings import BaseSettings
 
 
@@ -8,8 +6,6 @@ class Settings(BaseSettings):
     infra_namespace: str = "physical-ai"
     maas_namespace: str = "models-as-a-service"
     datasets_namespace: str = "physical-ai"
-
-    skills_root: str = str(Path(__file__).resolve().parent / "skills")
 
     llm_base_url: str = "http://maas-proxy.physical-ai.svc.cluster.local:8080/v1"
     llm_model: str = "qwen3-omni"

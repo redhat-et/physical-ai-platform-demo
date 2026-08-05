@@ -1,0 +1,32 @@
+[project]
+name = "pai-mcp-server"
+version = "0.1.0"
+description = "MCP gateway serving the platform skill catalog and proxying openshift-mcp-server's generic cluster tools behind a single agent-facing endpoint"
+requires-python = ">=3.11"
+dependencies = [
+    # mcp 2.0.0 (released 2026-07-28) moved/removed mcp.shared.context.RequestContext;
+    # pinned <2.0 to match features/platform-agent until downstream compatibility is confirmed.
+    "mcp<2.0",
+    "pyyaml>=6.0",
+    "pydantic-settings>=2.0",
+    "uvicorn[standard]>=0.34",
+    "httpx>=0.28",
+    # run_script executes skill scripts as subprocesses in this image -- these
+    # four are what those scripts actually import (k8s API calls, HF Hub
+    # metadata/downloads, and the fine-tuning skill's KFP pipeline submission).
+    # kfp==2.17.0 hard-pins kubernetes<31.
+    "kubernetes>=30.1,<31.0",
+    "huggingface_hub>=0.27",
+    "kfp>=2.17,<3.0",
+    "kfp-kubernetes>=2.17,<3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Explicit rather than relying on hatchling's default package auto-detection:
+# the Containerfile's build context has no .git dir, so hatchling's default
+# VCS-aware file selection doesn't apply here.
+[tool.hatch.build.targets.wheel]
+packages = ["src/pai_mcp_server"]

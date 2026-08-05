@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import re
 import uuid
 from contextlib import asynccontextmanager
 
@@ -24,34 +23,28 @@ agent_mode = None
 agent = None
 
 
-MCP_SERVER_URL = "http://localhost:8080/mcp"
+PAI_MCP_SERVER_URL = "http://pai-mcp-server.physical-ai.svc.cluster.local:8081/mcp"
 MCP_CONNECT_RETRIES = 5
 MCP_CONNECT_BACKOFF_SECONDS = 2  # doubles each attempt: 2, 4, 8, 16 (~30s worst case)
 
-_SCRIPT_PATH_RE = re.compile(r"[\w\-./]+\.(?:py|sh)\b")
-
 
 def _classify_tool_call(name: str, args: dict | None) -> tuple[str, str]:
-    """(category, label) for a tool call. category is 'skill' for a get_skill
-    lookup, or 'used' for anything that actually ran (a skill's shell script,
-    an MCP cluster tool, or any other tool) -- lets the UI say 'Loaded
-    Skill: X' vs 'Used: Y' instead of the meaningless raw tool name for
-    skills (every skill's every script runs through the same generic 'shell'
-    tool). Every other tool name (list_skills, resources_list, pods_log, ...)
-    is kept as-is -- unlike 'shell'/'get_skill', the name itself already says
+    """(category, label) for a tool call. category is 'skill' for a
+    load_skill lookup, or 'used' for anything that actually ran (a skill's
+    script via run_script, an MCP cluster tool, or any other tool) -- lets
+    the UI say 'Loaded Skill: X' vs 'Used: Y' instead of the meaningless raw
+    tool name for scripts (every skill's every script runs through the same
+    generic 'run_script' tool, so its label comes from the structured
+    skill/script args pai-mcp-server declares, not the tool name itself).
+    Every other tool name (list_skills, k8s_resources_list, ...) is kept
+    as-is -- unlike 'run_script'/'load_skill', the name itself already says
     what ran.
     """
     args = args or {}
-    if name == "get_skill":
+    if name == "load_skill":
         return "skill", args.get("name", "?")
-    if name == "shell":
-        command = (args.get("command") or "").strip()
-        if not command:
-            return "used", "Shell restart"
-        scripts = _SCRIPT_PATH_RE.findall(command)
-        if scripts:
-            return "used", scripts[-1].rsplit("/", 1)[-1]
-        return "used", command.splitlines()[0][:60]
+    if name == "run_script":
+        return "used", args.get("script", "?")
     return "used", name
 
 
@@ -76,12 +69,16 @@ def _summarize_tool_calls(tool_calls_detail: list[dict]) -> list[str]:
 
 
 async def _load_mcp_tools() -> list:
-    """Cluster-access tools (resource get/list/scale, pod logs, ...) served by
-    the openshift-mcp-server sidecar. Falls back to no MCP tools, rather than
-    blocking startup forever, once retries are exhausted.
+    """Every tool this agent has -- list_skills/load_skill/get_script/
+    run_script plus the k8s_* generic cluster-access passthrough -- served
+    by pai-mcp-server, the agent's single upstream connection. This process
+    holds no cluster credentials and executes nothing itself; everything
+    consequential happens server-side, behind that one connection. Falls
+    back to no tools, rather than blocking startup forever, once retries
+    are exhausted.
     """
     client = MultiServerMCPClient(
-        {"openshift": {"url": MCP_SERVER_URL, "transport": "streamable_http"}}
+        {"pai-mcp": {"url": PAI_MCP_SERVER_URL, "transport": "streamable_http"}}
     )
     for attempt in range(1, MCP_CONNECT_RETRIES + 1):
         try:
@@ -89,14 +86,14 @@ async def _load_mcp_tools() -> list:
         except Exception:
             if attempt == MCP_CONNECT_RETRIES:
                 logger.exception(
-                    "could not load tools from openshift-mcp-server at %s after %d attempt(s)",
-                    MCP_SERVER_URL, attempt,
+                    "could not load tools from pai-mcp-server at %s after %d attempt(s)",
+                    PAI_MCP_SERVER_URL, attempt,
                 )
                 return []
             delay = MCP_CONNECT_BACKOFF_SECONDS * (2 ** (attempt - 1))
             logger.warning(
-                "openshift-mcp-server not reachable at %s (attempt %d/%d) -- retrying in %ds",
-                MCP_SERVER_URL, attempt, MCP_CONNECT_RETRIES, delay,
+                "pai-mcp-server not reachable at %s (attempt %d/%d) -- retrying in %ds",
+                PAI_MCP_SERVER_URL, attempt, MCP_CONNECT_RETRIES, delay,
             )
             await asyncio.sleep(delay)
     return []  # unreachable -- every branch above returns
@@ -106,7 +103,7 @@ async def _load_mcp_tools() -> list:
 async def lifespan(app: FastAPI):
     global agent_mode, agent
     mcp_tools = await _load_mcp_tools()
-    agent_mode, agent = build_agent(use_tools=True, extra_tools=mcp_tools)
+    agent_mode, agent = build_agent(extra_tools=mcp_tools)
     print(f"Agent started in '{agent_mode}' mode with {len(mcp_tools)} MCP tool(s)")
     yield
 
