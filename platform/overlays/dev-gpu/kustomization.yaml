@@ -9,7 +9,7 @@ resources:
   - ../../base/models/qwen25-cpu/
   - ../../base/models/qwen25-gpu/
   - ../../base/models/pi05/
-  - ../../base/isaac-sim/
+  - ../../base/simulator/
   - ../../base/agent/
 
 patches:

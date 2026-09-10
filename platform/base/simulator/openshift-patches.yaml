@@ -1,13 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: isaac-lab
+  name: simulator
 spec:
   strategy:
     type: Recreate
   template:
     spec:
-      serviceAccountName: isaac-lab
+      serviceAccountName: simulator
       securityContext:
         runAsUser: 1234
       nodeSelector:
