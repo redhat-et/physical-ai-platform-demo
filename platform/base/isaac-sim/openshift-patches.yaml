@@ -11,7 +11,11 @@ spec:
       securityContext:
         runAsUser: 1234
       nodeSelector:
-        nvidia.com/gpu.product: NVIDIA-L40S
+        gpu-pool-size: xlarge
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: isaac-lab
         - name: zenoh-bridge
