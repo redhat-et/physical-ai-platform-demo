@@ -20,6 +20,10 @@ spec:
       type: Recreate
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
     # Add /dev/shm volume for multiprocessing
     volumes:
     - name: dshm

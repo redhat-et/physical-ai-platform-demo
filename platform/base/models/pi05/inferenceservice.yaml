@@ -18,6 +18,10 @@ spec:
       type: Recreate
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
     volumes:
     - name: triton-cache
       persistentVolumeClaim:
