@@ -21,13 +21,10 @@ data:
     ros2:
       domain_id: 0
       cameras:
-        wrist: "/camera/wrist/rgb"
-        exterior_1: "/camera/exterior_1/rgb"
-        exterior_2: "/camera/exterior_2/rgb"
-      joint_state_topic: "/joint_states"
-      joint_command_topic: "/joint_commands"
-      set_sim_state_service: "/isaacsim/SetSimulationState"
-      step_simulation_service: "/isaacsim/StepSimulation"
+        wrist: "/vla/obs/wrist_cam"
+        table: "/vla/obs/table_cam"
+      joint_state_topic: "/vla/obs/state"
+      joint_command_topic: "/vla/action"
 
     policy:
       type: "openpi"
@@ -46,7 +43,7 @@ data:
           action_type: "velocity"
           camera_mapping:
             wrist: "observation/wrist_image_left"
-            exterior_1: "observation/exterior_image_1_left"
+            table: "observation/exterior_image_1_left"
       embodiment:
         joint_names:
           - panda_joint1
@@ -76,5 +73,4 @@ data:
         gripper_limits: [0.0, 0.04]
         camera_mapping:
           wrist: "observation/wrist_image_left"
-          exterior_1: "observation/exterior_image_1_left"
-          exterior_2: "observation/exterior_image_2_left"
+          table: "observation/exterior_image_1_left"
