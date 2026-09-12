@@ -25,6 +25,7 @@ data:
         table: "/vla/obs/table_cam"
       joint_state_topic: "/vla/obs/state"
       joint_command_topic: "/vla/action"
+      state_msg_type: "Float32MultiArray"
 
     policy:
       type: "openpi"
