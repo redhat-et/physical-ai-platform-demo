@@ -8,6 +8,12 @@ spec:
       containers:
         - name: api
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1536Mi
+            limits:
+              memory: 3Gi
           env:
             - name: PLAYGROUND_CONFIG
               value: /etc/robotics-playground/config.yaml
