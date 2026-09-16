@@ -11,7 +11,7 @@ spec:
       securityContext:
         runAsUser: 1234
       nodeSelector:
-        gpu-pool-size: xlarge
+        gpu-pool-size: large
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists

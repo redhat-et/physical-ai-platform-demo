@@ -19,7 +19,7 @@ spec:
     deploymentStrategy:
       type: Recreate
     nodeSelector:
-      nvidia.com/gpu.product: NVIDIA-L40S
+      gpu-pool-size: xlarge
     tolerations:
       - key: nvidia.com/gpu
         operator: Exists
