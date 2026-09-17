@@ -1,0 +1,16 @@
+# TEMPORARY: use fzdarsky fork until
+# https://github.com/redhat-et/ros2_manager_based_env/pull/1 is merged
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulator
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: clone-env
+          env:
+            - name: ENV_GIT_REPO
+              value: https://github.com/fzdarsky/ros2_manager_based_env.git
+            - name: ENV_GIT_REF
+              value: feat/simulation-interfaces-services
