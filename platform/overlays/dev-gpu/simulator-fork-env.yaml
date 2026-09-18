@@ -14,3 +14,8 @@ spec:
               value: https://github.com/fzdarsky/ros2_manager_based_env.git
             - name: ENV_GIT_REF
               value: feat/simulation-interfaces-services
+      containers:
+        - name: isaac-lab
+          env:
+            - name: RMW_IMPLEMENTATION
+              value: rmw_cyclonedds_cpp
