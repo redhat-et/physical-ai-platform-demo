@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - ../../base/isaac-sim/
+  - ../../base/simulator/
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
   - ../../base/models/pi05/

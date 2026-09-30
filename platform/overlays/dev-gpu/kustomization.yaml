@@ -10,8 +10,10 @@ resources:
   - ../../base/models/qwen25-gpu/
   - ../../base/models/pi05/
   - ../../base/models/pi05_checkpoint/
-  - ../../base/isaac-sim/
+  - ../../base/simulator/
   - ../../base/agent/
 
 patches:
   - path: playground-ros2-config.yaml
+  - path: simulator-fork-env.yaml
+  - path: cyclonedds-rmw.yaml

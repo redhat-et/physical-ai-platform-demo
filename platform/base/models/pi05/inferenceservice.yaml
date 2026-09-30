@@ -17,7 +17,11 @@ spec:
     deploymentStrategy:
       type: Recreate
     nodeSelector:
-      nvidia.com/gpu.product: NVIDIA-L40S
+      gpu-pool-size: large
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
     volumes:
     - name: triton-cache
       persistentVolumeClaim:

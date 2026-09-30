@@ -1,0 +1,15 @@
+# Switch backend and simulator to CycloneDDS.
+# The zenoh-bridge-ros2dds uses CycloneDDS internally; FastRTPS encodes
+# service headers differently, causing all service calls to be dropped.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robotics-playground
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: RMW_IMPLEMENTATION
+              value: rmw_cyclonedds_cpp
