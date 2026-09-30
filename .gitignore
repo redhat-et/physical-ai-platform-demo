@@ -16,3 +16,6 @@ __pycache__/
 dist/
 .cache/
 .claude/settings.json
+
+MY_README.md
+.gitignore

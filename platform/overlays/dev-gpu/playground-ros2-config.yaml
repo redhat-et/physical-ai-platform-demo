@@ -38,6 +38,7 @@ data:
           # yamllint disable-next-line rule:line-length
           endpoint: "ws://dreamzero-predictor.physical-ai-models.svc.cluster.local/v1/realtime/robot/openpi"
           action_horizon: 4
+
         pi05-v1:
           name: "pi0.5"
           # yamllint disable-next-line rule:line-length
@@ -47,6 +48,16 @@ data:
           camera_mapping:
             wrist: "observation/wrist_image_left"
             exterior_1: "observation/exterior_image_1_left"
+
+        pi05-checkpoint-v1:
+          name: "pi0.5 Checkpoint"
+          # yamllint disable-next-line rule:line-length
+          endpoint: "ws://pi05-checkpoint-predictor.physical-ai-models.svc.cluster.local/"
+          action_horizon: 50
+          camera_mapping:
+            wrist: "observation.images.image2"
+            exterior_1: "observation.images.image"
+
       embodiment:
         joint_names:
           - panda_joint1

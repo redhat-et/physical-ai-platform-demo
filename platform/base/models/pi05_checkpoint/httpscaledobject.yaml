@@ -1,0 +1,24 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: pi05-checkpoint-http-scaler
+  namespace: physical-ai-models
+
+spec:
+  hosts:
+  - pi05-checkpoint-predictor.physical-ai-models.svc.cluster.local
+
+  targetPendingRequests: 1
+
+  scaleTargetRef:
+    name: pi05-checkpoint-predictor
+    kind: Deployment
+    apiVersion: apps/v1
+    service: pi05-checkpoint-predictor
+    port: 80
+
+  replicas:
+    min: 0
+    max: 3
+
+  scaledownPeriod: 3600

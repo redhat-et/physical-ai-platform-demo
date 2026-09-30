@@ -9,6 +9,7 @@ resources:
   - ../../base/models/qwen25-cpu/
   - ../../base/models/qwen25-gpu/
   - ../../base/models/pi05/
+  - ../../base/models/pi05_checkpoint/
   - ../../base/isaac-sim/
   - ../../base/agent/
 

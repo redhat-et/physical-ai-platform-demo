@@ -1,0 +1,80 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-pi05-checkpoint-model
+  namespace: physical-ai-models
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: downloader
+        image: python:3.11-slim
+
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+
+          echo "Installing huggingface_hub..."
+          pip install -q huggingface_hub
+
+          echo "Downloading execbat/pi05-robot-finetuned..."
+
+          python3 << 'PYEOF'
+          from huggingface_hub import snapshot_download
+          from pathlib import Path
+
+          repo_id = "execbat/pi05-robot-finetuned"
+          local_dir = Path("/mnt/models")
+
+          print(f"Downloading {repo_id} -> {local_dir}")
+
+          snapshot_download(
+              repo_id=repo_id,
+              local_dir=str(local_dir),
+          )
+
+          required_files = [
+              "config.json",
+              "model.safetensors",
+              "policy_preprocessor.json",
+              "policy_postprocessor.json",
+          ]
+
+          missing = [
+              filename
+              for filename in required_files
+              if not (local_dir / filename).exists()
+          ]
+
+          if missing:
+              raise RuntimeError(
+                  f"Checkpoint download incomplete. Missing: {missing}"
+              )
+
+          print("Checkpoint downloaded successfully.")
+
+          for item in sorted(local_dir.iterdir()):
+              print(item.name)
+          PYEOF
+
+        volumeMounts:
+        - name: model-storage
+          mountPath: /mnt/models
+
+        resources:
+          requests:
+            cpu: "2"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 16Gi
+
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: pi05-checkpoint-model-cache

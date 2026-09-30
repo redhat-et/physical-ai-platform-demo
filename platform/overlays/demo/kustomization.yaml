@@ -7,6 +7,7 @@ resources:
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
   - ../../base/models/pi05/
+  - ../../base/models/pi05_checkpoint/
 
 patches:
   - path: playground-ros2-config.yaml
