@@ -13,6 +13,9 @@ resources:
   - ../../base/simulator/
   - ../../base/agent/
 
+components:
+  - ../../components/fix-download-jobs
+
 patches:
   - path: playground-ros2-config.yaml
   - path: simulator-fork-env.yaml
