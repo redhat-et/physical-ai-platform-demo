@@ -20,3 +20,11 @@ configMapGenerator:
   - catalog.yaml
   options:
     disableNameSuffixHash: true
+- name: mcp-catalog-sources
+  namespace: rhoai-model-registries
+  behavior: create
+  files:
+  - sources.yaml=mcp-sources.yaml
+  - mcp-catalog.yaml
+  options:
+    disableNameSuffixHash: true

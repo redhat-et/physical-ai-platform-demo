@@ -1,0 +1,17 @@
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: physical-ai
+  namespace: rhoai-model-registries
+spec:
+  rest:
+    port: 8080
+  grpc:
+    port: 9090
+  postgres:
+    generateDeployment: true
+    database: physical_ai_model_registry
+    username: physical_ai
+    passwordSecret:
+      name: physical-ai-model-registry-db
+      key: database-password

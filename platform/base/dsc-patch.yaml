@@ -23,5 +23,11 @@ spec:
       managementState: Managed
     mlflowoperator:
       managementState: Managed
+    aigateway:
+      managementState: Managed
     llamastackoperator:
+      managementState: Managed
+    mcplifecycleoperator:
+      managementState: Managed
+    trainingoperator:
       managementState: Managed
