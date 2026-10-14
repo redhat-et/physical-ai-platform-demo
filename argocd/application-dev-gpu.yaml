@@ -25,6 +25,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - RespectIgnoreDifferences=true
+      # See application-dev.yaml: without this a first install deadlocks, as the
+      # DSC that registers the maas.opendatahub.io CRDs shares a sync with the
+      # MaaS CRs that need them.
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:
