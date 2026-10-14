@@ -5,6 +5,9 @@ metadata:
   namespace: physical-ai-models
 data:
   nginx.conf: |
+    # OpenShift runs this under restricted-v2 with a random UID from the
+    # namespace range, so nginx cannot write its default pid path.
+    pid /tmp/nginx.pid;
     events {
       worker_connections 1024;
     }
@@ -14,7 +17,9 @@ data:
       include /etc/nginx/conf.d/model-allowlist.conf;
 
       server {
-        listen 443 ssl;
+        # 8443, not 443: a random non-root UID has no CAP_NET_BIND_SERVICE and
+        # cannot bind a privileged port. The Service still exposes 443.
+        listen 8443 ssl;
         server_name _;
 
         ssl_certificate /etc/tls/tls.crt;
@@ -53,7 +58,7 @@ spec:
   - name: https
     port: 443
     protocol: TCP
-    targetPort: 443
+    targetPort: 8443
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -75,9 +80,15 @@ spec:
       - name: nginx
         image: nginx:alpine
         ports:
-        - containerPort: 443
+        - containerPort: 8443
           protocol: TCP
         volumeMounts:
+        # nginx creates client_temp/proxy_temp/... under here at startup and
+        # the image ships it owned by root, which a random UID cannot write.
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: tmp
+          mountPath: /tmp
         - name: config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
@@ -95,6 +106,12 @@ spec:
             cpu: 200m
             memory: 128Mi
       volumes:
+      # emptyDir picks up the namespace fsGroup, so it is group-writable by
+      # whatever UID OpenShift assigns.
+      - name: cache
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
       - name: config
         configMap:
           name: maas-proxy-config
