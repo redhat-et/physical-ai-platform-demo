@@ -219,6 +219,16 @@ check_db_secrets() {
 #                  prefix    db_name  db_ns          conn_secret         conn_ns
 check_db_secrets   "maas"    "maas"   "physical-ai"  "maas-db-config"    "redhat-ods-applications"
 check_db_secrets   "mlflow"  "mlflow" "physical-ai"  "mlflow-db-connection" "redhat-ods-applications"
+
+if ! check_secret "rhoai-model-registries" "physical-ai-model-registry-db"; then
+    if [[ "$GENERATE_SECRETS" == true ]]; then
+        ensure_namespace "rhoai-model-registries"
+        oc create secret generic "physical-ai-model-registry-db" \
+            --namespace="rhoai-model-registries" \
+            --from-literal=database-password="$(generate_password)"
+        check_pass "Secret physical-ai-model-registry-db created in rhoai-model-registries"
+    fi
+fi
 echo ""
 
 # --- Summary ---

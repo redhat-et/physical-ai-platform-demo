@@ -1,4 +1,4 @@
-source: Physical AI Platform
+source: Physical AI
 models:
 - name: MockLM-Echo
   description: >-

@@ -5,7 +5,15 @@ metadata:
   namespace: redhat-ods-applications
 spec:
   dashboardConfig:
+    agentConfigManagement: true
+    agentOps: true
+    agentsCatalog: true
+    connectionTest: true
     disableKServeMetrics: false
     disablePerformanceMetrics: false
     genAiStudio: true
+    guardrails: true
+    mcpCatalog: true
+    mcpRegistry: true
     modelAsService: true
+    observabilityDashboard: true

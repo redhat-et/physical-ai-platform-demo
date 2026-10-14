@@ -1,6 +1,6 @@
 catalogs:
-- name: Physical AI Platform
-  id: physical_ai_platform
+- name: Physical AI
+  id: physical_ai
   type: yaml
   enabled: true
   properties:
