@@ -2,6 +2,11 @@ apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: default-dsc
+  annotations:
+    # Apply before everything else. Enabling aigateway.modelsAsAService is what
+    # registers the maas.opendatahub.io CRDs that the MaaS CRs in this same
+    # overlay are instances of, so the DSC has to land first on a first install.
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   components:
     kserve:

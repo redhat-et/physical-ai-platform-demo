@@ -25,6 +25,13 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - RespectIgnoreDifferences=true
+      # The DSC patch is what enables MaaS, which is what registers the
+      # maas.opendatahub.io CRDs -- and the overlay's MaaS CRs are in the same
+      # sync. Without this, ArgoCD dry-runs every resource before applying any,
+      # fails with "failed to discover server resources for group version
+      # maas.opendatahub.io/v1alpha1", and never applies the DSC that would have
+      # created them. A first install can then never converge.
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:
