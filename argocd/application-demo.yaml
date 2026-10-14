@@ -45,6 +45,9 @@ spec:
       kind: InferenceService
       jsonPointers:
         - /status
+        - /metadata/annotations/serving.kserve.io~1deploymentMode
+        - /metadata/annotations/modelFormat
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
     - group: apps
       kind: StatefulSet
       name: maas-db
