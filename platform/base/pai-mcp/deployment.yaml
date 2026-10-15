@@ -38,26 +38,6 @@ spec:
               memory: 64Mi
             limits:
               memory: 128Mi
-        - name: mcp-server
-          image: quay.io/redhat-et/openshift-mcp-server:latest
-          imagePullPolicy: Always
-          restartPolicy: Always
-          args: ["--port", "8080", "--toolsets=core"]
-          ports:
-            - name: mcp
-              containerPort: 8080
-              protocol: TCP
-          readinessProbe:
-            tcpSocket:
-              port: mcp
-            initialDelaySeconds: 3
-            periodSeconds: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              memory: 256Mi
       containers:
         - name: server
           image: quay.io/redhat-et/pai-mcp-server:latest
@@ -73,6 +53,8 @@ spec:
               value: physical-ai
             - name: MODELS_NAMESPACE
               value: physical-ai-models
+            - name: PAI_MCP_OPENSHIFT_MCP_URL
+              value: http://openshift-mcp-server.physical-ai.svc:8080/mcp
             - name: HOME
               value: /tmp
             - name: HF_HOME
