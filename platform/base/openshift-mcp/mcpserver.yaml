@@ -1,0 +1,31 @@
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: openshift-mcp-server
+  namespace: physical-ai
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: registry.redhat.io/openshift-mcp-tech-preview/openshift-mcp-server-rhel9:0.4
+  config:
+    port: 8080
+    path: /mcp
+    arguments: ["--config", "/etc/mcp-config/config.toml"]
+    storage:
+      - path: /etc/mcp-config
+        permissions: ReadOnly
+        source:
+          type: ConfigMap
+          configMap:
+            name: openshift-mcp-server-config
+  runtime:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    security:
+      serviceAccountName: mcp-viewer
