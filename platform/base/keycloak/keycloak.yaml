@@ -1,0 +1,27 @@
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: physical-ai
+spec:
+  instances: 1
+  hostname:
+    hostname: keycloak-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com
+  http:
+    httpEnabled: true
+  proxy:
+    headers: xforwarded
+  db:
+    vendor: postgres
+    host: keycloak-db
+    port: 5432
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-credentials
+      key: username
+    passwordSecret:
+      name: keycloak-db-credentials
+      key: password
+  bootstrapAdmin:
+    user:
+      secret: keycloak-admin-credentials

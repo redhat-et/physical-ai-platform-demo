@@ -97,6 +97,7 @@ check_operator() {
 check_operator "Red Hat OpenShift AI" "redhat-ods-operator" "rhods-operator" "3.4"
 check_operator "Red Hat Connectivity Link" "kuadrant-system" "rhcl-operator" "1.3"
 check_operator "cert-manager Operator" "cert-manager-operator" "openshift-cert-manager-operator" "1.0"
+check_operator "Red Hat build of Keycloak" "physical-ai" "rhbk-operator" "26.0"
 echo ""
 
 # --- Kuadrant CR ---
@@ -228,6 +229,88 @@ if ! check_secret "rhoai-model-registries" "physical-ai-model-registry-db"; then
             --from-literal=database-password="$(generate_password)"
         check_pass "Secret physical-ai-model-registry-db created in rhoai-model-registries"
     fi
+fi
+echo ""
+
+# --- Keycloak secrets ---
+echo "Keycloak secrets:"
+
+generate_keycloak_secrets() {
+    ensure_namespace "physical-ai"
+
+    if ! oc get secret "keycloak-db-credentials" -n "physical-ai" &>/dev/null; then
+        oc create secret generic "keycloak-db-credentials" \
+            --namespace="physical-ai" \
+            --from-literal=username="keycloak" \
+            --from-literal=password="$(generate_password)"
+        check_pass "Secret keycloak-db-credentials created in physical-ai"
+    fi
+
+    if ! oc get secret "keycloak-admin-credentials" -n "physical-ai" &>/dev/null; then
+        oc create secret generic "keycloak-admin-credentials" \
+            --namespace="physical-ai" \
+            --from-literal=username="admin" \
+            --from-literal=password="$(generate_password)"
+        check_pass "Secret keycloak-admin-credentials created in physical-ai"
+    fi
+
+    # Broker secret shared between OAuthClient CR and Keycloak realm import
+    local broker_secret
+    if ! oc get secret "keycloak-broker-secret" -n "physical-ai" &>/dev/null; then
+        broker_secret="$(generate_password)"
+        oc create secret generic "keycloak-broker-secret" \
+            --namespace="physical-ai" \
+            --from-literal=client-secret="$broker_secret"
+        check_pass "Secret keycloak-broker-secret created in physical-ai"
+    else
+        broker_secret="$(oc get secret keycloak-broker-secret -n physical-ai \
+            -o jsonpath='{.data.client-secret}' | base64 -d)"
+    fi
+
+    # OAuthClient for OpenShift IdP brokering (cluster-scoped, not in kustomize)
+    local apps_domain
+    apps_domain="$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')"
+    local redirect_uri="https://keycloak-physical-ai.${apps_domain}/realms/physical-ai/broker/openshift/endpoint"
+    if ! oc get oauthclient "keycloak-broker" &>/dev/null; then
+        oc apply -f - <<OAUTH_EOF
+apiVersion: oauth.openshift.io/v1
+kind: OAuthClient
+metadata:
+  name: keycloak-broker
+grantMethod: auto
+secret: ${broker_secret}
+redirectURIs:
+  - ${redirect_uri}
+OAUTH_EOF
+        check_pass "OAuthClient keycloak-broker created"
+    fi
+
+    if ! oc get secret "mcp-client-secret" -n "physical-ai" &>/dev/null; then
+        oc create secret generic "mcp-client-secret" \
+            --namespace="physical-ai" \
+            --from-literal=client-secret="$(generate_password)"
+        check_pass "Secret mcp-client-secret created in physical-ai"
+    fi
+}
+
+keycloak_needs_generate=false
+check_secret "physical-ai" "keycloak-db-credentials" || keycloak_needs_generate=true
+check_secret "physical-ai" "keycloak-admin-credentials" || keycloak_needs_generate=true
+check_secret "physical-ai" "keycloak-broker-secret" || keycloak_needs_generate=true
+check_secret "physical-ai" "mcp-client-secret" || keycloak_needs_generate=true
+
+if oc get oauthclient "keycloak-broker" &>/dev/null; then
+    check_pass "OAuthClient keycloak-broker"
+else
+    if [[ "$GENERATE_SECRETS" == true ]]; then
+        keycloak_needs_generate=true
+    else
+        check_fail "OAuthClient keycloak-broker not found — run with --generate-secrets to create"
+    fi
+fi
+
+if [[ "$keycloak_needs_generate" == true && "$GENERATE_SECRETS" == true ]]; then
+    generate_keycloak_secrets
 fi
 echo ""
 

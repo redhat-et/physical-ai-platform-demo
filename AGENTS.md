@@ -17,6 +17,10 @@ platform/
     namespace.yaml          # physical-ai, physical-ai-models, models-as-a-service
     dsc-patch.yaml          # DataScienceCluster config (KServe, MaaS, Dashboard)
     maas/                   # MaaS infrastructure (gateway, tenant, PostgreSQL)
+    keycloak/               # Keycloak instance, realm, OpenShift IdP broker
+    mcp-gateway/            # Dedicated Gateway API gateway for MCP servers
+    openshift-mcp/          # openshift-mcp-server (MCPServer CRD + RBAC + config)
+    pai-mcp/                # pai-mcp-server (platform skills, K8s proxy)
     models/                 # Model catalog — each model is a subdirectory
       mocklm/               # Mock OpenAI-compatible server (no GPU, always on)
       cosmos3-nano/         # NVIDIA Cosmos 3 Nano world model (L40S GPU)
@@ -33,7 +37,7 @@ argocd/
 
 ## Deployment Model
 
-- **GitOps via ArgoCD**: push to `main` → ArgoCD auto-syncs to cluster (self-heal + prune enabled)
+- **GitOps via ArgoCD**: push to `main` → ArgoCD detects drift but requires **manual sync** (no auto-sync policy); trigger via ArgoCD UI or `oc patch`
 - **Kustomize overlays**: overlays select which models from `base/models/` to include
 - **Currently active**: `physical-ai-platform-dev-gpu` ArgoCD app tracking `platform/overlays/dev-gpu`
 - **Cluster**: shared ROSA cluster (`api.emerg.pcbk.p1.openshiftapps.com:6443`)
@@ -57,6 +61,7 @@ See `platform/prerequisites.md` for operator and cluster requirements:
 
 - Red Hat OpenShift AI 3.4+
 - Red Hat Connectivity Link 1.3+ (`rhcl-operator`, NOT the community `kuadrant-operator`)
+- Red Hat build of Keycloak 26.x+ (`rhbk-operator`, namespace-scoped into `physical-ai`)
 - cert-manager Operator 1.x
 - OpenShift 4.19.9+ (for native Gateway API CRDs)
 
@@ -71,7 +76,9 @@ oc get inferenceservices -n physical-ai-models    # list served models
 oc get pods -n physical-ai-models                 # check model server pods
 oc get externalmodels -n physical-ai-models       # list MaaS-registered models
 oc logs -n physical-ai-models <pod>               # debug a model server
-oc get applications -n openshift-gitops           # check ArgoCD sync status
+oc get mcpservers -n physical-ai                  # list MCP servers
+oc get gateway,httproutes -n physical-ai          # check MCP gateway routing
+oc get applications.argoproj.io -n openshift-gitops  # check ArgoCD sync status (use argoproj.io API group)
 ```
 
 ## Validation
