@@ -14,6 +14,7 @@ resources:
   - pipelines/
   - robotics-playground/
   - robotics-playground-backend/
+  - keycloak/
   - mcp-gateway/
   - openshift-mcp/
   - pai-mcp/

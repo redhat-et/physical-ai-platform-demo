@@ -12,6 +12,7 @@ they must be set up by a cluster admin.
 | Red Hat OpenShift AI | 3.4 | `rhods-operator` | `redhat-operators` | KServe, MaaS controller, Dashboard |
 | Red Hat Connectivity Link | 1.3 | `rhcl-operator` | `redhat-operators` | Kuadrant, Authorino, Limitador |
 | cert-manager | 1.x | `openshift-cert-manager-operator` | `redhat-operators` | TLS certificates |
+| Red Hat build of Keycloak | 26.x | `rhbk-operator` | `redhat-operators` | OAuth/OIDC for MCP server auth |
 | Custom Metrics Autoscaler | 2.19 | `custom-metrics-autoscaler` | `redhat-operators` | KEDA for GPU model scale-to-zero (optional) |
 
 > **Note:** Do not install the community `kuadrant-operator` from
@@ -114,6 +115,46 @@ metadata:
 EOF
 ```
 
+### Red Hat build of Keycloak
+
+RHBK is a **namespace-scoped** operator — it must be installed into the
+`physical-ai` namespace (AllNamespaces mode is not supported):
+
+```bash
+cat <<'EOF' | oc apply -f -
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: rhbk-operator
+  namespace: physical-ai
+spec:
+  targetNamespaces:
+    - physical-ai
+  upgradeStrategy: Default
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhbk-operator
+  namespace: physical-ai
+spec:
+  channel: stable-v26.6
+  name: rhbk-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
+```
+
+Wait for the CSV to reach `Succeeded`:
+
+```bash
+oc get csv -n physical-ai -w
+```
+
+The Keycloak instance, realm, and client configuration are managed by the
+platform's kustomize manifests — do **not** create them manually.
+
 ### User Workload Monitoring
 
 ```bash
@@ -142,6 +183,10 @@ ArgoCD. These must be provisioned before deployment.
 | `mlflow-db-admin-credentials` | `physical-ai` | PostgreSQL admin password for MLflow DB |
 | `mlflow-db-credentials` | `physical-ai` | MLflow DB user, password, database name |
 | `mlflow-db-connection` | `redhat-ods-applications` | MLflow DB connection URL |
+| `keycloak-db-credentials` | `physical-ai` | Keycloak PostgreSQL username and password |
+| `keycloak-admin-credentials` | `physical-ai` | Keycloak bootstrap admin username and password |
+| `keycloak-broker-secret` | `physical-ai` | OAuthClient secret for OpenShift IdP brokering |
+| `mcp-client-secret` | `physical-ai` | Client secret for the `mcp-client` confidential client |
 
 Use `--generate-secrets` to create them with random passwords:
 
