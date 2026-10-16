@@ -1,0 +1,32 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: mcp-gateway-auth
+  namespace: physical-ai
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: mcp-gateway
+  rules:
+    authentication:
+      keycloak-jwt:
+        jwt:
+          issuerUrl: https://keycloak-physical-ai.apps.emerg.pcbk.p1.openshiftapps.com/realms/physical-ai
+        credentials:
+          authorizationHeader:
+            prefix: Bearer
+    authorization:
+      require-mcp-scope:
+        patternMatching:
+          patterns:
+            - predicate: '"mcp" in auth.identity.scope.split(" ")'
+    response:
+      unauthenticated:
+        code: 401
+        message:
+          value: "Authentication required — obtain a token from the Physical AI Keycloak realm"
+      unauthorized:
+        code: 403
+        message:
+          value: "Access denied — token missing required 'mcp' scope"
