@@ -81,6 +81,67 @@ physical-ai-platform-demo/
 
 To add models to the catalog, see [docs/adding-models.md](docs/adding-models.md).
 
+## Agent Access (Claude Code / platform agent)
+
+Claude Code and the platform agent read the cluster through the read-only `pai-agent` ServiceAccount
+(`view` in `physical-ai`, `physical-ai-models` and `models-as-a-service`; node/namespace listing;
+cluster monitoring; no Secrets, no write verbs). Writes go only through `pai-mcp-server`, which uses
+a separate SA. See [docs/agent-identities.md](docs/agent-identities.md).
+
+1. As an admin, create a kubeconfig that contains only the
+   agent's token:
+
+   ```bash
+   SERVER=$(oc whoami --show-server)
+   TOKEN=$(oc create token pai-agent -n physical-ai --duration=12h)
+   KUBECONFIG=$HOME/.kube/pai-config oc login --server="$SERVER" --token="$TOKEN"
+   chmod 600 ~/.kube/pai-config
+   ```
+
+2. Start Claude Code pointed at it. The variable applies to that one process, so your shell and other
+   sessions are unaffected:
+
+   ```bash
+   KUBECONFIG=$HOME/.kube/pai-config claude
+   ```
+
+   Verify inside the session:
+
+   ```bash
+   oc whoami                                       # system:serviceaccount:physical-ai:pai-agent
+   oc get pods -n physical-ai-models               # works
+   oc auth can-i delete pods -n physical-ai-models # no
+   ```
+
+Notes:
+
+- Don't `export KUBECONFIG` in your shell; a stale export makes later `oc login` calls overwrite the file.
+- The token expires after the `--duration`; re-run step 1 to refresh it.
+- This scopes Claude Code's `oc` calls, not your machine: your own `~/.kube/config` still exists.
+- The built-in `view` role only covers CRDs that aggregate into it. If a `get` on a platform CRD is
+  denied, add a read Role to `platform/base/pai-agent/`.
+
+### MCP access (writes)
+
+Changes go through `pai-mcp-server`, which sits behind `mcp-gateway` and a Keycloak JWT check
+(`platform/base/mcp-gateway/`). The token must include the `mcp` scope. Add the server to Claude Code
+with your Keycloak access token in the `Authorization` header:
+
+```bash
+GW=$(oc get gateway mcp-gateway -n physical-ai -o jsonpath='{.status.addresses[0].value}')
+TOKEN=<keycloak-access-token>   # insert your token here
+
+claude mcp add --transport http pai-mcp-server "http://$GW/pai/mcp" \
+  --header "Authorization: Bearer $TOKEN"
+```
+
+Tokens expire; re-run the command with a fresh one (`claude mcp remove pai-mcp-server -s local` first).
+The gateway listener is plain HTTP today, so the token is sent unencrypted; add TLS before using this
+beyond a test cluster.
+
+Fallback without the gateway: `oc port-forward svc/pai-mcp-server 18081:8081 -n physical-ai`
+(admin login, separate terminal), then add `http://localhost:18081/mcp` with no header.
+
 ## Development
 
 ### Prerequisites

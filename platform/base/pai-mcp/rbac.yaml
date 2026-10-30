@@ -48,7 +48,7 @@ roleRef:
   name: pai-mcp-server
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # Read access to MaaS subscriptions and auth policies
@@ -73,7 +73,7 @@ roleRef:
   name: pai-mcp-server
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # Read access to infra namespace + Tekton pipeline execution + fine-tuning dataset/checkpoint PVC and Job management
@@ -110,7 +110,7 @@ roleRef:
   name: pai-mcp-server
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # DSPA API access for triggering/polling fine-tuning pipeline runs (Role is operator-managed, not defined in this repo)
@@ -125,7 +125,7 @@ roleRef:
   name: ds-pipeline-user-access-dspa
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # MLflow's kubernetes-auth app authorizes requests via a SelfSubjectAccessReview against this synthetic resource.
@@ -141,7 +141,7 @@ roleRef:
   name: mlflow-experiments-access
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # Read access to ArgoCD application status
@@ -166,7 +166,7 @@ roleRef:
   name: pai-mcp-server
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 # Cluster-scoped access for node/namespace inventory (GPU capacity).
@@ -192,7 +192,7 @@ roleRef:
   name: pai-mcp-server-metrics-reader
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -205,5 +205,5 @@ roleRef:
   name: cluster-monitoring-view
 subjects:
   - kind: ServiceAccount
-    name: pai-mcp-server
+    name: pai-mcp-write
     namespace: physical-ai
