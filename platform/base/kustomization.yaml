@@ -19,3 +19,4 @@ resources:
   - mcp-gateway/
   - openshift-mcp/
   - pai-mcp/
+  - pai-agent/
