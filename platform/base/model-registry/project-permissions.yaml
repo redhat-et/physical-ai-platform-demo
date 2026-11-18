@@ -1,0 +1,80 @@
+# Project permissions for the physical-ai model registry.
+#
+# The RHOAI dashboard shows a "No project permissions" warning until at least
+# one RoleBinding exists that is labeled app.kubernetes.io/name=<registry> and
+# opendatahub.io/rb-project-subject="true" with a Group subject of the form
+# system:serviceaccounts:<project> (see odh-dashboard ModelRegistriesTableRow
+# and ProjectsSettingsTab). These bindings grant service accounts in the
+# platform projects access to the registry via the operator-managed
+# registry-user-physical-ai Role, enabling workbench access and project-scoped
+# model storage transfer jobs.
+#
+# To add or remove projects, add or remove a RoleBinding below. These can also
+# be managed from the dashboard (Settings > Model registry settings > Manage
+# permissions > Projects tab), which creates equivalent objects with random
+# dashboard-permissions-* names.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: physical-ai-project-physical-ai
+  namespace: rhoai-model-registries
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/rb-project-subject: "true"
+    app: physical-ai
+    app.kubernetes.io/component: model-registry
+    app.kubernetes.io/part-of: model-registry
+    app.kubernetes.io/name: physical-ai
+    component: model-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: registry-user-physical-ai
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: physical-ai-project-physical-ai-models
+  namespace: rhoai-model-registries
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/rb-project-subject: "true"
+    app: physical-ai
+    app.kubernetes.io/component: model-registry
+    app.kubernetes.io/part-of: model-registry
+    app.kubernetes.io/name: physical-ai
+    component: model-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: registry-user-physical-ai
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:physical-ai-models
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: physical-ai-project-physical-ai-datasets
+  namespace: rhoai-model-registries
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/rb-project-subject: "true"
+    app: physical-ai
+    app.kubernetes.io/component: model-registry
+    app.kubernetes.io/part-of: model-registry
+    app.kubernetes.io/name: physical-ai
+    component: model-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: registry-user-physical-ai
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:physical-ai-datasets
