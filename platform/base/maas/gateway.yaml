@@ -5,6 +5,9 @@ metadata:
   namespace: openshift-ingress
 data:
   service: |
+    metadata:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: "maas-default-gateway-service-tls"
     spec:
       type: ClusterIP
 ---
@@ -24,6 +27,23 @@ spec:
     - name: maas
       port: 80
       protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    # maas-api resolves the gateway's internal host by looking for the
+    # Gateway-owned Service exposing port 443; model access probes dial it
+    # over TLS using the Service CA. Mirror the platform's data-science-gateway
+    # pattern: HTTPS listener terminated with the Service CA serving cert
+    # annotated onto the generated Service via maas-default-gateway-config.
+    - name: maas-https
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: maas-default-gateway-service-tls
       allowedRoutes:
         namespaces:
           from: All

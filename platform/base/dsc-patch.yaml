@@ -12,8 +12,6 @@ spec:
     kserve:
       managementState: Managed
       rawDeploymentServiceConfig: Headed
-      modelsAsService:
-        managementState: Managed
     modelregistry:
       managementState: Managed
     dashboard:
@@ -30,6 +28,8 @@ spec:
       managementState: Managed
     aigateway:
       managementState: Managed
+      modelsAsAService:
+        managementState: Managed
     llamastackoperator:
       managementState: Managed
     mcplifecycleoperator:
