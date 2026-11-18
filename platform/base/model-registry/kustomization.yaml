@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - model-registry.yaml
+  - project-permissions.yaml
