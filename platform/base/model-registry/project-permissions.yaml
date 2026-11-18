@@ -9,10 +9,18 @@
 # registry-user-physical-ai Role, enabling workbench access and project-scoped
 # model storage transfer jobs.
 #
-# To add or remove projects, add or remove a RoleBinding below. These can also
-# be managed from the dashboard (Settings > Model registry settings > Manage
-# permissions > Projects tab), which creates equivalent objects with random
-# dashboard-permissions-* names.
+# Git is the source of truth for these grants. To grant an additional
+# project, add a RoleBinding below. To revoke a project's access, remove its
+# RoleBinding from this file AND delete the live object: an ArgoCD sync with
+# pruning removes it automatically, but a plain `oc apply -k` (as documented
+# in README.md) does not delete bindings that are no longer in the file —
+# run `oc delete rolebinding <name> -n rhoai-model-registries` in that case.
+#
+# The bindings here have fixed names and are reconciled by ArgoCD
+# (prune/selfHeal): removing them via the dashboard does not revoke access,
+# as the next sync re-creates them. Manage these grants exclusively through
+# this file; the dashboard's Projects tab only suits ad-hoc grants it created
+# itself (dashboard-permissions-* objects).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

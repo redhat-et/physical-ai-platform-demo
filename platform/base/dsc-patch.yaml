@@ -6,6 +6,15 @@ metadata:
     # Apply before everything else. Enabling aigateway.modelsAsAService is what
     # registers the maas.opendatahub.io CRDs that the MaaS CRs in this same
     # overlay are instances of, so the DSC has to land first on a first install.
+    #
+    # The wave only orders resource creation; it cannot wait for the RHOAI
+    # operator to finish registering the CRDs. On a first install the MaaS CR
+    # applies may therefore fail with "no matches for kind" until the operator
+    # has reconciled the DSC. The Application's retry policy (5 retries, up to
+    # 3m of exponential backoff) together with SkipDryRunOnMissingResource
+    # covers this window in practice; if a first sync still exhausts its
+    # retries, re-trigger the sync once the CRDs are registered:
+    #   oc get crd | grep maas.opendatahub.io
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   components:
