@@ -1,15 +1,19 @@
 OVERLAYS := dev dev-gpu demo
 KUSTOMIZE_BUILD := $(if $(shell command -v kustomize 2>/dev/null),kustomize build,oc kustomize)
 
-.PHONY: validate lint kustomize-build kubeconform
+.PHONY: validate lint test-model-catalog kustomize-build kubeconform
 
 ## Run all validation checks
-validate: lint kustomize-build kubeconform
+validate: lint test-model-catalog kustomize-build kubeconform
 
 ## Lint YAML files
 lint:
 	@echo "=== YAML Lint ==="
 	uvx yamllint -c .yamllint.yaml platform/
+
+## Test the catalog generator with local fixtures
+test-model-catalog:
+	uv run --script hack/test-model-catalog.py
 
 ## Build all kustomize overlays
 kustomize-build:
