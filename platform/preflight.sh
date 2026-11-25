@@ -164,6 +164,7 @@ generate_db_secrets() {
     local db_ns="$3"
     local conn_secret="$4"
     local conn_ns="$5"
+    local conn_key="${6:-DB_CONNECTION_URL}"
 
     local password
     password="$(generate_password)"
@@ -195,7 +196,7 @@ generate_db_secrets() {
     if ! oc get secret "$conn_secret" -n "$conn_ns" &>/dev/null; then
         oc create secret generic "$conn_secret" \
             --namespace="$conn_ns" \
-            --from-literal=DB_CONNECTION_URL="postgresql://${db_name}:${password}@${prefix}-db.${db_ns}.svc:5432/${db_name}?sslmode=disable"
+            --from-literal="$conn_key"="postgresql://${db_name}:${password}@${prefix}-db.${db_ns}.svc:5432/${db_name}?sslmode=disable"
         check_pass "Secret $conn_secret created in $conn_ns"
     fi
 }
@@ -206,6 +207,7 @@ check_db_secrets() {
     local db_ns="$3"
     local conn_secret="$4"
     local conn_ns="$5"
+    local conn_key="${6:-DB_CONNECTION_URL}"
     local needs_generate=false
 
     check_secret "$db_ns" "${prefix}-db-admin-credentials" || needs_generate=true
@@ -213,13 +215,15 @@ check_db_secrets() {
     check_secret "$conn_ns" "$conn_secret" || needs_generate=true
 
     if [[ "$needs_generate" == true && "$GENERATE_SECRETS" == true ]]; then
-        generate_db_secrets "$prefix" "$db_name" "$db_ns" "$conn_secret" "$conn_ns"
+        generate_db_secrets "$prefix" "$db_name" "$db_ns" "$conn_secret" "$conn_ns" "$conn_key"
     fi
 }
 
 #                  prefix    db_name  db_ns          conn_secret         conn_ns
 check_db_secrets   "maas"    "maas"   "physical-ai"  "maas-db-config"    "redhat-ods-applications"
 check_db_secrets   "mlflow"  "mlflow" "physical-ai"  "mlflow-db-connection" "redhat-ods-applications"
+# EvalHub's database.secret expects a db-url key instead of DB_CONNECTION_URL
+check_db_secrets   "evalhub" "evalhub" "physical-ai" "evalhub-db-url"    "physical-ai" "db-url"
 
 if ! check_secret "rhoai-model-registries" "physical-ai-model-registry-db"; then
     if [[ "$GENERATE_SECRETS" == true ]]; then
