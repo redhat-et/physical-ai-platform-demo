@@ -1,6 +1,6 @@
 mcp_catalogs:
 - name: Physical AI MCP Servers
-  id: physical_ai
+  id: physical_ai_mcp
   enabled: true
   type: yaml
   properties:
