@@ -12,8 +12,9 @@ git diff -- platform/base/model-catalog/catalog.yaml
 
 Keep `name` stable to preserve the card URL. `repo` is the Hugging Face `owner/repository` ID. The
 generator follows `main` unless you specify a `revision` (branch, tag, or commit). Each output card
-records the resolved commit and uses it in the `hf://` weights URI. The tool fetches metadata and the
-README, not the weights. It does not configure or change a serving runtime.
+records the full commit SHA and links to the pinned Hugging Face snapshot and README. The tool fetches
+metadata and the README, not the weights. It omits `artifacts` because the RHOAI 3.5 static YAML
+importer rejects `hf://` URIs.
 
 Use `overrides` for catalog fields such as `description`, `tasks`, and string-valued `customProperties`.
 Use `supplement` for model requirements, links to serving guides, or reviewed evaluation summaries.
