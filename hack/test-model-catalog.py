@@ -68,7 +68,13 @@ class CatalogRefreshTest(unittest.TestCase):
         self.assertEqual(model["license"], "apache-2.0")
         self.assertEqual(model["language"], ["en"])
         self.assertEqual(model["tasks"], ["robotics"])
-        self.assertEqual(model["artifacts"], [{"uri": "hf://example/robot:" + SHA}])
+        self.assertNotIn("artifacts", model)
+        self.assertEqual(
+            model["customProperties"]["physical_ai_hf_revision"],
+            {"metadataType": "MetadataStringValue", "string_value": SHA},
+        )
+        self.assertIn(f"({HUB}/{REPO}/tree/{SHA})", model["readme"])
+        self.assertIn(f"({HUB}/{REPO}/blob/{SHA}/README.md)", model["readme"])
         self.assertEqual(
             model["customProperties"]["platform_note"],
             {"metadataType": "MetadataStringValue", "string_value": "local metadata"},
@@ -91,7 +97,9 @@ class CatalogRefreshTest(unittest.TestCase):
         self.assertEqual(self.catalog.read_bytes(), old_catalog)
         self.assertEqual(self.run_update(), 0)
         model = YAML(typ="safe").load(self.catalog)["models"][1]
-        self.assertEqual(model["artifacts"], [{"uri": f"hf://{REPO}:{revision}"}])
+        self.assertNotIn("artifacts", model)
+        self.assertEqual(model["customProperties"]["physical_ai_hf_revision"]["string_value"], revision)
+        self.assertIn(f"({HUB}/{REPO}/tree/{revision})", model["readme"])
         self.assertIn("# New card", model["readme"])
         self.assertEqual(self.run_update("--check"), 0)
 

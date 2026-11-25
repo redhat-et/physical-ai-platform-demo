@@ -1065,7 +1065,7 @@ models:
 
     For more detailed information on ethical considerations for this model, please see the Model Card++ [Explainability](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/EXPLAINABILITY.md), [Bias](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/BIAS.md), [Safety & Security](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/SAFETY.md), and [Privacy](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/PRIVACY.md) subcards. Please report model quality, risk, security vulnerabilities or NVIDIA AI Concerns [here](https://www.nvidia.com/en-us/support/submit-security-vulnerability/).
 
-    [Upstream model card at `45666784803b`](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/README.md)
+    [Hugging Face snapshot at `45666784803b`](https://huggingface.co/nvidia/Cosmos3-Nano/tree/45666784803b3a7ad577e0def405f9afcc3bddb2) · [Upstream model card](https://huggingface.co/nvidia/Cosmos3-Nano/blob/45666784803b3a7ad577e0def405f9afcc3bddb2/README.md)
 
     ## Physical AI notes
 
@@ -1077,8 +1077,6 @@ models:
     physical_ai_hf_revision:
       metadataType: MetadataStringValue
       string_value: 45666784803b3a7ad577e0def405f9afcc3bddb2
-  artifacts:
-  - uri: hf://nvidia/Cosmos3-Nano:45666784803b3a7ad577e0def405f9afcc3bddb2
 - name: DreamZero-DROID
   provider: GEAR-Dreams
   license: cc-by-nc-4.0
@@ -1118,7 +1116,7 @@ models:
     ```bash
     huggingface-cli download GEAR-Dreams/DreamZero-DROID --repo-type model --local-dir ./checkpoints/DreamZero-DROID
 
-    [Upstream model card at `96ad344138c6`](https://huggingface.co/GEAR-Dreams/DreamZero-DROID/blob/96ad344138c66e82536422432ad742f015784942/README.md)
+    [Hugging Face snapshot at `96ad344138c6`](https://huggingface.co/GEAR-Dreams/DreamZero-DROID/tree/96ad344138c66e82536422432ad742f015784942) · [Upstream model card](https://huggingface.co/GEAR-Dreams/DreamZero-DROID/blob/96ad344138c66e82536422432ad742f015784942/README.md)
 
     ## Physical AI notes
 
@@ -1130,8 +1128,6 @@ models:
     physical_ai_hf_revision:
       metadataType: MetadataStringValue
       string_value: 96ad344138c66e82536422432ad742f015784942
-  artifacts:
-  - uri: hf://GEAR-Dreams/DreamZero-DROID:96ad344138c66e82536422432ad742f015784942
 - name: π0.5
   provider: Physical Intelligence
   license: gemma
@@ -1282,7 +1278,7 @@ models:
       --policy.path=${HF_USER}/my_policy
     ```
 
-    [Upstream model card at `22c30e5b34f9`](https://huggingface.co/lerobot/pi05_base/blob/22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0/README.md)
+    [Hugging Face snapshot at `22c30e5b34f9`](https://huggingface.co/lerobot/pi05_base/tree/22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0) · [Upstream model card](https://huggingface.co/lerobot/pi05_base/blob/22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0/README.md)
 
     ## Physical AI notes
 
@@ -1296,5 +1292,3 @@ models:
     physical_ai_hf_revision:
       metadataType: MetadataStringValue
       string_value: 22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0
-  artifacts:
-  - uri: hf://lerobot/pi05_base:22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0

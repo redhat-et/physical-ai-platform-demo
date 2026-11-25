@@ -183,7 +183,11 @@ def model_from_hub(opener, name, repo, ref, overrides, supplement):
     fields = {key: value for key, value in fields.items() if value and isinstance(value, (str, list))}
     fields.update((key, value) for key, value in overrides.items() if key != "customProperties")
     card_url = f"{HUB}/{repo}/blob/{sha}/README.md"
-    readme = pin_readme_links(markdown, repo, sha) + f"\n\n[Upstream model card at `{sha[:12]}`]({card_url})"
+    snapshot_url = f"{HUB}/{repo}/tree/{sha}"
+    readme = pin_readme_links(markdown, repo, sha) + (
+        f"\n\n[Hugging Face snapshot at `{sha[:12]}`]({snapshot_url})"
+        f" · [Upstream model card]({card_url})"
+    )
     if supplement.strip():
         readme += "\n\n## Physical AI notes\n\n" + supplement.strip()
     fields["readme"] = LiteralScalarString(readme)
@@ -191,7 +195,8 @@ def model_from_hub(opener, name, repo, ref, overrides, supplement):
     fields["customProperties"].update(
         (key, metadata_string(value)) for key, value in sorted(overrides.get("customProperties", {}).items())
     )
-    fields["artifacts"] = [{"uri": f"hf://{repo}:{sha}"}]
+    # The RHOAI 3.5 static YAML importer rejects hf:// artifact URIs.
+    # Keep the pinned Hub snapshot as card provenance, not an artifact.
     return fields
 
 
