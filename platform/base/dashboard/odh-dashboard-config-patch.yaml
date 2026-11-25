@@ -9,6 +9,10 @@ spec:
     agentOps: true
     agentsCatalog: true
     connectionTest: true
+    # Enables the "Evaluations" page (EvalHub) under Develop & Train.
+    # Requires the trustyai DSC component (Managed) and the EvalHub CR in
+    # platform/base/evalhub/. Inverted flag: false = enabled.
+    disableLMEval: false
     disableKServeMetrics: false
     disablePerformanceMetrics: false
     genAiStudio: true

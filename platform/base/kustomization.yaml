@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - dsc-patch.yaml
   - dashboard/
+  - evalhub/
   - feature-store/
   - maas/
   - mlflow/

@@ -10,6 +10,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: physical-ai-models
+  labels:
+    # Registers the namespace as an EvalHub tenant so evaluation jobs can run
+    # against the models deployed here. The TrustyAI operator provisions the
+    # job ServiceAccount, RoleBindings, and service CA ConfigMap from this label.
+    evalhub.trustyai.opendatahub.io/tenant: ""
 ---
 apiVersion: v1
 kind: Namespace
