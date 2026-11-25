@@ -1,5 +1,32 @@
 # Adding Models to the Catalog
 
+## AI hub model cards
+
+To add or refresh a public, non-gated Hugging Face model in **AI hub → Models → Catalog → Physical AI**,
+edit [`hack/model-catalog.yaml`](../hack/model-catalog.yaml), then run from the repository root:
+
+```bash
+uv run --script hack/update-model-catalog.py
+git diff -- platform/base/model-catalog/catalog.yaml
+```
+
+Keep `name` stable to preserve the card URL. `repo` is the Hugging Face `owner/repository` ID. The
+generator follows `main` unless you specify a `revision` (branch, tag, or commit). Each output card
+records the resolved commit and uses it in the `hf://` weights URI. The tool fetches metadata and the
+README, not the weights. It does not configure or change a serving runtime.
+
+Use `overrides` for catalog fields such as `description`, `tasks`, and string-valued `customProperties`.
+Use `supplement` for model requirements, links to serving guides, or reviewed evaluation summaries.
+Keep demo-specific runtime flags, resource settings, and setup steps in the per-model serving docs.
+Keep evaluation details tied to the revision tested; the generator does not import or verify EvalHub
+reports. Review upstream license changes in the diff. Commit the allowlist and generated catalog together.
+
+The generator leaves hand-maintained entries, including MockLM, alone. To remove a generated card,
+remove it from the allowlist and rerun the tool. `--check` reports whether a refresh would change the
+file without writing it (exit `1` for changes, `2` for errors).
+
+## Serving manifests
+
 Each model lives in its own directory under `platform/base/models/<model-name>/` with a `kustomization.yaml` listing its resources.
 
 **Two patterns exist:**

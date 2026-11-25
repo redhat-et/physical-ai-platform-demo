@@ -14,7 +14,7 @@ DreamZero is a vision-language-action model for robotics tasks from GEAR-Dreams.
 
 This model is deployed via KServe InferenceService with:
 - **Runtime:** vllm-omni-runtime
-- **GPU:** 1 GPU
+- **GPU:** 2 GPUs in the demo deployment
 - **Memory:** 32-64 GiB
 - **Storage:** 100GB PVC for model caching
 
@@ -68,10 +68,10 @@ Once deployed, the model is available at:
 
 ## Multi-GPU Configuration
 
-For better performance, you can scale to multiple GPUs:
+The demo manifests use the two-GPU configuration below. For four GPUs, adjust the resource requests and runtime args together.
 
 ### 2 GPUs (Tensor Parallelism)
-Edit InferenceService to request 2 GPUs and update the runtime args to include:
+The [InferenceService](inferenceservice.yaml) requests two GPUs and the [ServingRuntime](servingruntime.yaml) sets:
 ```yaml
 - --tensor-parallel-size=2
 - --stage-overrides={"0":{"devices":"0,1"}}

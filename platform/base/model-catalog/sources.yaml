@@ -5,3 +5,8 @@ catalogs:
   enabled: true
   properties:
     yamlCatalogPath: catalog.yaml
+  labels:
+  - Physical AI
+labels:
+- name: Physical AI
+  assetType: models

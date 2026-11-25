@@ -18,3 +18,7 @@ vLLM-Omni does not support pi0.5 (see vllm-project/vllm-omni#4136).
 
 The `openpi-runtime` ServingRuntime runs the OpenPI policy server with the `pi05_droid`
 configuration.
+
+The [model download job](model-download-job.yaml) downloads the weights from Hugging Face
+and adds the DROID normalization statistics from GCS at `assets/droid/norm_stats.json`
+in the model cache. The runtime reads the checkpoint and its assets from `/mnt/models`.
