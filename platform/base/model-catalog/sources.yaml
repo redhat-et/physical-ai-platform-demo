@@ -7,7 +7,7 @@ catalogs:
     yamlCatalogPath: catalog.yaml
   labels:
   - Physical AI
-- name: Physical AI Hugging Face
+- name: Physical AI
   id: physical_ai_hf
   type: hf
   enabled: true
@@ -15,6 +15,7 @@ catalogs:
   includedModels:
   - GEAR-Dreams/DreamZero-DROID
   - lerobot/pi05_base
+  - lerobot/pi05_libero_base
   - nvidia/Cosmos3-Nano
   - nvidia/GR00T-N1.7-3B
   labels:
