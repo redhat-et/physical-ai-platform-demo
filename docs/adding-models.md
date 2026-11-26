@@ -2,29 +2,20 @@
 
 ## AI hub model cards
 
-To add or refresh a public, non-gated Hugging Face model in **AI hub → Models → Catalog → Physical AI**,
-edit [`hack/model-catalog.yaml`](../hack/model-catalog.yaml), then run from the repository root:
+To add a public, non-gated Hugging Face model to **AI hub → Models → Catalog → Physical AI models**,
+add its full `owner/repository` ID to `includedModels` on the `physical_ai_hf` source in
+[`platform/base/model-catalog/sources.yaml`](../platform/base/model-catalog/sources.yaml).
+Use exact IDs and leave `allowedOrganization` unset so the source can span several organizations.
+The static [MockLM cards](../platform/base/model-catalog/catalog.yaml) share the `Physical AI` label.
 
-```bash
-uv run --script hack/update-model-catalog.py
-git diff -- platform/base/model-catalog/catalog.yaml
-```
+RHOAI reads the Hub repository's `main` README and metadata and supplies an `hf://` model location
+for Register and Deploy. The dashboard title and provider come from the Hub, with no per-model
+overrides or revision pin in the native source. Add or update card content in the Hub repository,
+not in the static catalog. A catalog entry does not configure a serving runtime.
 
-Keep `name` stable to preserve the card URL. `repo` is the Hugging Face `owner/repository` ID. The
-generator follows `main` unless you specify a `revision` (branch, tag, or commit). Each output card
-records the full commit SHA and links to the pinned Hugging Face snapshot and README. The tool fetches
-metadata and the README, not the weights. It omits `artifacts` because the RHOAI 3.5 static YAML
-importer rejects `hf://` URIs.
-
-Use `overrides` for catalog fields such as `description`, `tasks`, and string-valued `customProperties`.
-Use `supplement` for model requirements, links to serving guides, or reviewed evaluation summaries.
-Keep demo-specific runtime flags, resource settings, and setup steps in the per-model serving docs.
-Keep evaluation details tied to the revision tested; the generator does not import or verify EvalHub
-reports. Review upstream license changes in the diff. Commit the allowlist and generated catalog together.
-
-The generator leaves hand-maintained entries, including MockLM, alone. To remove a generated card,
-remove it from the allowlist and rerun the tool. `--check` reports whether a refresh would change the
-file without writing it (exit `1` for changes, `2` for errors).
+After syncing `model-catalog-sources`, check the catalog deployment is ready and the UI lists all
+expected entries with their cards. Verify that Register and Deploy open on the imported models;
+an Argo CD sync alone does not verify that RHOAI loaded the source.
 
 ## Serving manifests
 
