@@ -7,6 +7,18 @@ catalogs:
     yamlCatalogPath: catalog.yaml
   labels:
   - Physical AI
+- name: Physical AI Hugging Face
+  id: physical_ai_hf
+  type: hf
+  enabled: true
+  # Use complete repository IDs so one source can select models across organizations.
+  includedModels:
+  - GEAR-Dreams/DreamZero-DROID
+  - lerobot/pi05_base
+  - nvidia/Cosmos3-Nano
+  - nvidia/GR00T-N1.7-3B
+  labels:
+  - Physical AI
 labels:
 - name: Physical AI
   assetType: models
