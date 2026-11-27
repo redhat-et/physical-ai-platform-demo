@@ -1,0 +1,36 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-cpu-x86-runtime
+  namespace: physical-ai-models
+  annotations:
+    opendatahub.io/runtime-version: v0.24.0
+    openshift.io/display-name: vLLM CPU (x86) ServingRuntime for KServe
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:cdfad10bf27a59831e3c235e4c5d8c31c2595485702c2cf8079fec7d599af7df
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    command:
+    - python
+    - -m
+    - vllm.entrypoints.openai.api_server
+    args:
+    - --port=8080
+    - --model=/mnt/models
+    - --served-model-name={{.Name}}
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+  multiModel: false
+  supportedModelFormats:
+  - name: vLLM
+    autoSelect: true
