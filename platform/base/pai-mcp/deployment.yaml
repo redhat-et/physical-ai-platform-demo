@@ -15,7 +15,7 @@ spec:
       labels:
         app: pai-mcp-server
     spec:
-      serviceAccountName: pai-mcp-server
+      serviceAccountName: pai-mcp-write
       volumes:
         - name: skills-repo
           emptyDir: {}

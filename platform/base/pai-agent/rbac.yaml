@@ -1,0 +1,86 @@
+# Read-only identity for Claude Code and the platform agent (token goes in the
+# user's Claude settings.json env, see README). Never reuse pai-mcp-write here.
+# The built-in `view` ClusterRole excludes Secrets and all write verbs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pai-agent
+  namespace: physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-agent
+  namespace: physical-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: pai-agent
+    namespace: physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-agent
+  namespace: physical-ai-models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: pai-agent
+    namespace: physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pai-agent
+  namespace: models-as-a-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: pai-agent
+    namespace: physical-ai
+---
+# Cluster-scoped read for GPU capacity and namespace inventory only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pai-agent-cluster-reader
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pai-agent-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pai-agent-cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: pai-agent
+    namespace: physical-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pai-agent-monitoring-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: pai-agent
+    namespace: physical-ai
