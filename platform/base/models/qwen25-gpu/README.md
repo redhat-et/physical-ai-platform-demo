@@ -17,7 +17,7 @@ the model backing `platform_agent` itself (see `platform/base/agent/configmap.ya
 
 Deployed via KServe InferenceService with:
 
-- **Runtime:** vllm-qwen25-gpu-runtime
+- **Runtime:** `vllm-cuda-runtime` from RHOAI's `vllm-cuda-runtime-template`
 - **minReplicas:** 0 — scales from zero via the `qwen25-gpu-http-scaler` HTTPScaledObject
 
 ## Testing

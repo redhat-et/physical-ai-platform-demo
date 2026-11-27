@@ -12,6 +12,8 @@ resources:
   - ../../base/models/pi05_checkpoint/
   - ../../base/simulator/
   - ../../base/agent/
+  - ../../base/model-serving/vllm-cpu/
+  - ../../base/model-serving/vllm-cuda/
 
 components:
   - ../../components/fix-download-jobs

@@ -16,9 +16,19 @@ spec:
     minReplicas: 0
     model:
       modelFormat:
-        name: vllm
-      runtime: vllm-cpu-runtime
+        name: vLLM
+      runtime: vllm-cpu-x86-runtime
       storageUri: pvc://qwen25-cpu-model-cache
+      args:
+      - --trust-remote-code
+      - --enable-auto-tool-choice
+      - --tool-call-parser=hermes
+      - --max-model-len=8192
+      env:
+      - name: VLLM_CPU_KVCACHE_SPACE
+        value: "4"
+      - name: OMP_NUM_THREADS
+        value: "4"
       resources:
         requests:
           cpu: "2"

@@ -14,7 +14,7 @@ environments/experiments where GPU capacity isn't available or needed.
 
 Deployed via KServe InferenceService with:
 
-- **Runtime:** vllm-cpu-runtime
+- **Runtime:** `vllm-cpu-x86-runtime` from RHOAI's `vllm-cpu-x86-runtime-template`
 - **minReplicas:** 1 (no GPU cost to offset, so it's kept warm to avoid CPU cold-start latency)
 
 ## Testing
