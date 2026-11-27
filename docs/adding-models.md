@@ -25,13 +25,20 @@ Each model lives in its own directory under `platform/base/models/<model-name>/`
 
 ## Pattern A: KServe InferenceService (GPU models)
 
-For models served by vLLM-Omni or another serving runtime. See `cosmos3-nano/` or `dreamzero/` as examples.
+See `cosmos3-nano/` and `dreamzero/` for examples. Both select the shared vLLM-Omni runtime under [`platform/base/model-serving/`](../platform/base/model-serving/). Each overlay includes the runtime definitions it needs.
 
 Required files:
 
-- `kustomization.yaml` — lists `servingruntime.yaml` and `inferenceservice.yaml`
-- `servingruntime.yaml` — defines the container image, args, ports, model format
-- `inferenceservice.yaml` — defines the model URI, resource requests (CPU, memory, GPU), runtime reference
+- `kustomization.yaml` — lists the model's resources
+- `inferenceservice.yaml` — selects the runtime and defines the model URI, launch arguments, and resource requests
+
+Reuse a compatible `ServingRuntime` rather than defining one per checkpoint. For
+UI-deployed fine-tunes, register the complete serving artifact as a model
+version and deploy it under a new name. Use a pinned Hugging Face revision
+(`hf://`), immutable S3 prefix (`s3://`), or OCI ModelCar by digest (`oci://`).
+Google Cloud Storage (`gs://`) is another supported KServe storage source;
+check credentials and access in the deployment project. The runtime consumes
+the staged files at `/mnt/models` regardless of the source.
 
 All resources deploy into namespace `physical-ai-models`.
 
@@ -97,5 +104,6 @@ After adding the model directory, include it in the appropriate overlay's `kusto
 ```yaml
 resources:
   - ../../base
+  - ../../base/model-serving/vllm-omni/  # once per overlay, if needed
   - ../../base/models/<model-name>/
 ```

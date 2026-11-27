@@ -5,7 +5,6 @@ resources:
   - pvc.yaml
   - triton-cache-pvc.yaml
   - model-download-job.yaml
-  - servingruntime.yaml
   - inferenceservice.yaml
   - external-model.yaml
   - model-ref.yaml

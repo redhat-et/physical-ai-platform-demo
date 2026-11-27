@@ -92,7 +92,6 @@ The directory contains the Kubernetes resources required for the deployment, inc
 pvc.yaml
 triton-cache-pvc.yaml
 model-download-job.yaml
-servingruntime.yaml
 inferenceservice.yaml
 httpscaledobject.yaml
 kustomization.yaml
@@ -110,9 +109,10 @@ Stores the downloaded checkpoint.
 
 Stores compilation and runtime caches used by the inference server.
 
-### `servingruntime.yaml`
+### Shared LeRobot runtime
 
-Defines the LeRobot π0.5 serving runtime.
+The [shared LeRobot ServingRuntime](../../model-serving/lerobot/servingruntime.yaml)
+defines how to launch `lerobot-server`.
 
 It starts:
 
@@ -141,6 +141,45 @@ pi05-checkpoint-predictor
 Provides HTTP-based scaling behavior for the inference service.
 
 ## Relationship to the standard π0.5 deployment
+
+### Opt-in LIBERO deployment config for vLLM-Omni
+
+The [LIBERO deployment config](../pi05-libero/pi05-libero-deploy.yaml) describes
+the LIBERO checkpoint's cameras, state, and actions. Use the same Omni runtime
+for another supported π0.5 checkpoint with its own artifact and deploy config.
+Do not reuse the LIBERO metadata preparation script for DROID.
+
+Create an InferenceService that selects the shared `vllm-omni-runtime` and
+requests one NVIDIA L40S. Set `storageUri` to the LIBERO checkpoint, for example
+`hf://lerobot/pi05_libero_base:5fcf06fc42b6717e22ab885fd381a096574b12c7`.
+KServe stages the artifact under `/mnt/models`; the runtime does not download
+its own fixed checkpoint. This does not change either existing π0.5 endpoint.
+
+Mount the `pi05-libero-omni-config` ConfigMap read-only at `/etc/pi05-libero`
+using `spec.predictor.volumes` and `spec.predictor.model.volumeMounts`. Set
+`OMNI_PREPARE_CHECKPOINT=/etc/pi05-libero/prepare_pi05_libero.py` in
+`spec.predictor.model.env` and add these `spec.predictor.model.args`:
+
+```yaml
+- --deploy-config=/etc/pi05-libero/pi05-libero-deploy.yaml
+- --enforce-eager
+- --disable-log-stats
+```
+
+Set `HF_TOKEN` from the `huggingface-token` Secret for access to the gated
+`google/paligemma-3b-pt-224` tokenizer.
+
+Use the OpenPI WebSocket at `/v1/realtime/robot/openpi`, not the legacy route at
+`/`. Send the two LIBERO camera keys (`observation.images.image` and
+`observation.images.image2`) and an 8-value `state`. The runtime preprocesses
+256×256 camera frames to 224×224 and returns a 10×7 action array. This checkpoint
+does not ship normalization statistics; inputs and outputs stay in model space.
+Verify action agreement in simulation before using the endpoint for control.
+
+The ServingRuntime alone creates no endpoint. Verify WebSocket upgrades and
+cold starts before enabling scale-to-zero for this runtime.
+
+### Existing runtimes
 
 The standard OpenPI deployment remains available under:
 

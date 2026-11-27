@@ -23,14 +23,26 @@ spec:
       emptyDir:
         medium: Memory
         sizeLimit: 16Gi
+    - name: deploy-config
+      configMap:
+        name: qwen3-omni-deploy-config
     model:
       modelFormat:
         name: pytorch
-      runtime: vllm-omni-qwen3-runtime
+      runtime: vllm-omni-runtime
       storageUri: pvc://qwen3-omni-model-cache
+      args:
+      - --trust-remote-code
+      - --deploy-config=/etc/vllm-omni/deploy-config.yaml
+      - --stage-init-timeout=900
+      - --enable-auto-tool-choice
+      - --tool-call-parser=hermes
       volumeMounts:
       - name: dshm
         mountPath: /dev/shm
+      - name: deploy-config
+        mountPath: /etc/vllm-omni
+        readOnly: true
       resources:
         requests:
           cpu: "4"

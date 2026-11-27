@@ -71,18 +71,15 @@ Once deployed, the model is available at:
 The demo manifests use the two-GPU configuration below. For four GPUs, adjust the resource requests and runtime args together.
 
 ### 2 GPUs (Tensor Parallelism)
-The [InferenceService](inferenceservice.yaml) requests two GPUs and the [ServingRuntime](servingruntime.yaml) sets:
+The [InferenceService](inferenceservice.yaml) requests two GPUs and passes this override to the [shared ServingRuntime](../../model-serving/vllm-omni/servingruntime.yaml):
 ```yaml
-- --tensor-parallel-size=2
-- --stage-overrides={"0":{"devices":"0,1"}}
+- '--stage-overrides={"0":{"devices":"0,1","parallel_config":{"tensor_parallel_size":2}}}'
 ```
 
 ### 4 GPUs (TP=2 + CFG=2)
 Request 4 GPUs and update args:
 ```yaml
-- --tensor-parallel-size=2
-- --cfg-parallel-size=2
-- --stage-overrides={"0":{"devices":"0,1,2,3"}}
+- '--stage-overrides={"0":{"devices":"0,1,2,3","parallel_config":{"tensor_parallel_size":2,"cfg_parallel_size":2}}}'
 ```
 
 ## Troubleshooting

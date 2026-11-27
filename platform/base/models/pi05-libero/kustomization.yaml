@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+- name: pi05-libero-omni-config
+  namespace: physical-ai-models
+  files:
+  - pi05-libero-deploy.yaml
+  - prepare_pi05_libero.py
+  options:
+    disableNameSuffixHash: true
