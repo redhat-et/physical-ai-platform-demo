@@ -3,11 +3,15 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../base/model-serving/vllm-omni/
+  - ../../base/model-serving/openpi/
+  - ../../base/model-serving/lerobot/
   - ../../base/simulator/
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
   - ../../base/models/pi05/
   - ../../base/models/pi05_checkpoint/
+  - ../../base/models/pi05-libero/
 
 patches:
   - path: playground-ros2-config.yaml

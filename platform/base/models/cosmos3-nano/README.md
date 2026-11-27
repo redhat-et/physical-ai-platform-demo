@@ -17,18 +17,7 @@ You need a HuggingFace token with access to two gated repositories:
 3. Visit both model pages above and accept the license agreements
 4. Wait for approval (usually instant for NVIDIA models)
 
-### 2. OpenShift Security Context Constraints (SCC)
-
-The container requires root access to install system packages (libxcb, libGL, libgomp) needed by the cosmos_guardrail package.
-
-Grant the `anyuid` SCC to the default service account:
-
-```bash
-oc adm policy add-scc-to-user anyuid -z default -n physical-ai-models
-```
-
-
-### 3. GPU Requirements
+### 2. GPU Requirements
 
 - **GPU**: NVIDIA L40S (48GB VRAM)
 - **Memory**: 64-128GB RAM
@@ -38,7 +27,7 @@ oc adm policy add-scc-to-user anyuid -z default -n physical-ai-models
 
 ### One-Time Setup (Required Before First Deployment)
 
-These steps only need to be done **once** per namespace. The secret and SCC permissions persist across deployments.
+The Hugging Face secret only needs to be created **once** per namespace.
 
 ```bash
 #    This secret persists and is reused by all deployments
@@ -55,48 +44,17 @@ oc create secret generic huggingface-token \
 ### Deploy with Kustomize
 
 ```bash
-# From the repository root
-cd platform/base/models/cosmos3-nano
-
-# Deploy
-oc apply -k .
+# From the repository root, install the shared runtime before the model.
+oc apply -k platform/base/model-serving/vllm-omni
+oc apply -k platform/base/models/cosmos3-nano
 ```
 
 ## How It Works
 
-### Installation Steps (automated in ServingRuntime)
-
-The ServingRuntime container startup performs these steps:
-
-1. **Install system libraries** (as root):
-   - `libxcb`, `libGL`: Required by OpenCV in cosmos_guardrail
-   - `libgomp`: OpenMP library for parallel processing
-
-2. **Install cosmos_guardrail package**:
-   - Installed to `/tmp/packages` with `--no-deps` to avoid upgrading torch
-   - The vLLM container has torch 2.11.0, but cosmos_guardrail wants >=2.6.0
-   - Installing with `--no-deps` preserves the vLLM-compatible torch version
-
-3. **Install guardrail dependencies**:
-   - All dependencies except torch are installed separately
-   - Prevents dependency conflicts while satisfying guardrail requirements
-
-4. **Download Cosmos-1.0-Guardrail model**:
-   - Happens automatically when vLLM initializes
-   - Requires HF_TOKEN with access to the gated repository
-   - Required by NVIDIA license for Cosmos3 models
-
-5. **Start vLLM server**:
-   - No FP8 quantization (CUTLASS kernel issues on L40S)
-   - Uses `--enable-layerwise-offload` to fit 33GB model in 48GB VRAM
-   - Serves on port 8080 with OpenAI-compatible API
-
-### Why These Steps Are Necessary
-
-- **System packages**: cosmos_guardrail uses OpenCV which needs graphics libraries
-- **Root access**: System packages can't be installed without OS package manager (microdnf)
-- **Manual dependency management**: cosmos_guardrail and vLLM have conflicting torch version requirements
-- **Gated model access**: NVIDIA requires license acceptance for Cosmos models
+The upstream CUDA image supplies the Cosmos guardrail dependencies. Startup
+does not install packages or request root. vLLM downloads the gated guardrail
+model on initialization using `HF_TOKEN`; guardrails remain enabled. The server
+uses `--enable-layerwise-offload` for the L40S and listens on port 8080.
 
 ## Generating Videos
 
@@ -214,13 +172,6 @@ Expected output:
 ```
 
 ## Troubleshooting
-
-### Pod fails with "runAsUser: Invalid value: 0"
-
-The anyuid SCC hasn't been granted. Run:
-```bash
-oc adm policy add-scc-to-user anyuid -z default -n physical-ai-models
-```
 
 ### "401 Unauthorized" errors for Cosmos-1.0-Guardrail
 

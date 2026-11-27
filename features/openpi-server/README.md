@@ -26,5 +26,5 @@ the bundled transformers library. Expect ~10-15 min build time and an ~8-10 GB i
 ## Usage
 
 The image is referenced by the `openpi-runtime` ServingRuntime in
-`platform/base/models/pi05/servingruntime.yaml`. The policy config and model
+`platform/base/model-serving/openpi/servingruntime.yaml`. The policy config and model
 directory are passed via the ServingRuntime's container `command`/`args`.

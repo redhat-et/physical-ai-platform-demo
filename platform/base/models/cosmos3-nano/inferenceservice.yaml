@@ -27,8 +27,17 @@ spec:
         medium: Memory
         sizeLimit: 8Gi
     model:
+      args:
+      - --init-timeout=1800
+      - --enforce-eager
+      - --disable-log-stats
+      - --enable-layerwise-offload
       # Add HF_TOKEN for guardrail access
       env:
+      - name: ATTENTION_BACKEND
+        value: torch
+      - name: DIFFUSION_ATTENTION_BACKEND
+        value: TORCH_SDPA
       - name: HF_TOKEN
         valueFrom:
           secretKeyRef:
@@ -36,7 +45,7 @@ spec:
             key: HF_TOKEN
       modelFormat:
         name: pytorch
-      runtime: vllm-omni-cosmos3-runtime
+      runtime: vllm-omni-runtime
       storageUri: pvc://cosmos3-model-cache
       volumeMounts:
       - name: dshm

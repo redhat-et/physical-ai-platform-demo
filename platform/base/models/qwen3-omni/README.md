@@ -13,7 +13,7 @@ Qwen3-Omni is an end-to-end omni-modal model from Alibaba Cloud, capable of unde
 ## Deployment
 
 Deployed via KServe InferenceService with:
-- **Runtime:** vllm-omni-qwen3-runtime
+- **Runtime:** `vllm-omni-runtime` (shared)
 - **Quantization:** FP8 (on-the-fly, ~33GB in GPU memory)
 - **GPU Layout:** Thinker (TP=2) on GPUs 0,1 | Talker on GPU 2 | Code2Wav on GPU 3
 - **Deploy Config:** Custom ConfigMap (`qwen3-omni-deploy-config`) with `max_model_len: 32768`

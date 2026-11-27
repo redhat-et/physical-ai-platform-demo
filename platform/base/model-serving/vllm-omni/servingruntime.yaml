@@ -1,0 +1,52 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-omni-runtime
+  namespace: physical-ai-models
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8080"
+  containers:
+  - name: kserve-container
+    # Temporary non-UBI mirror; switch back when a RHEL-based build has policy support.
+    image: quay.io/redhat-et/vllm-omni:v0.34.0
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    command:
+    - /bin/bash
+    - -c
+    args:
+    - |
+      set -e
+      mkdir -p "$HOME"
+      unset HF_HUB_OFFLINE
+
+      model_dir=/mnt/models
+      if [ -n "${OMNI_PREPARE_CHECKPOINT:-}" ]; then
+        staged_dir=$(mktemp -d /tmp/omni-model.XXXXXX)
+        python3 "$OMNI_PREPARE_CHECKPOINT" "$model_dir" "$staged_dir"
+        model_dir=$staged_dir
+      fi
+
+      exec vllm serve "$model_dir" --omni --host=0.0.0.0 --port=8080 \
+        --served-model-name={{.Name}} "$@"
+    # bash -c uses the first argument after the script as $0, not part of $@.
+    - vllm-omni
+    env:
+    - name: HOME
+      value: /tmp/vllm-home
+    - name: HF_HOME
+      value: /tmp/hf_home
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /tmp/torch_cache
+  supportedModelFormats:
+  - name: pytorch
+    version: "2"
+    autoSelect: false
+  - name: vLLM
+    autoSelect: false
