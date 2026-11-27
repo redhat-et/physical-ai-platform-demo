@@ -12,7 +12,7 @@ spec:
     prometheus.kserve.io/port: "8080"
   containers:
   - name: kserve-container
-    image: quay.io/vllm/automation-vllm-omni:cuda-28466746130
+    image: quay.io/redhat-et/vllm-omni:v0.34.0
     ports:
     - containerPort: 8080
       protocol: TCP
