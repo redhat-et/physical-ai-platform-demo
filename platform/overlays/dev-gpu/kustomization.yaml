@@ -8,8 +8,6 @@ resources:
   - ../../base/model-serving/lerobot/
   - ../../base/models/dreamzero/
   - ../../base/models/cosmos3-nano/
-  - ../../base/models/qwen3-omni/
-  - ../../base/models/qwen25-cpu/
   - ../../base/models/qwen25-gpu/
   - ../../base/models/pi05/
   - ../../base/models/pi05_checkpoint/

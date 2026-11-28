@@ -8,14 +8,21 @@ environments/experiments where GPU capacity isn't available or needed.
 - **Model:** Qwen/Qwen2.5-1.5B-Instruct
 - **Size:** 1.5B parameters
 - **Hardware:** CPU only (no `nvidia.com/gpu` request)
-- **Framework:** vLLM (`vllm/vllm-openai-cpu` image), tool calling enabled via the `hermes` parser
+- **Runtime:** RHOAI `vllm-cpu-x86-runtime`, with the `hermes` tool parser
 
 ## Deployment
 
-Deployed via KServe InferenceService with:
+The `dev-gpu` overlay installs the shared runtime but does not start this
+model. After pruning any previous GitOps deployment with this name, start
+one CPU replica from the repository root:
 
-- **Runtime:** `vllm-cpu-x86-runtime` from RHOAI's `vllm-cpu-x86-runtime-template`
-- **minReplicas:** 1 (no GPU cost to offset, so it's kept warm to avoid CPU cold-start latency)
+```bash
+oc create -k platform/base/models/qwen25-cpu
+```
+
+KServe stages the pinned Hugging Face checkpoint in each new pod. There is
+no MaaS registration or request-driven autoscaler. Remove the endpoint when
+done with `oc delete -k platform/base/models/qwen25-cpu`.
 
 ## Testing
 

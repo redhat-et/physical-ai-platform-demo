@@ -4,6 +4,7 @@ metadata:
   name: qwen25-cpu
   namespace: physical-ai-models
   labels:
+    networking.kserve.io/visibility: cluster-local
     opendatahub.io/dashboard: "true"
     opendatahub.io/genai-asset: "true"
   annotations:
@@ -13,12 +14,13 @@ metadata:
     physical-ai.io/output-kind: chat
 spec:
   predictor:
-    minReplicas: 0
+    minReplicas: 1
+    maxReplicas: 1
     model:
       modelFormat:
         name: vLLM
       runtime: vllm-cpu-x86-runtime
-      storageUri: pvc://qwen25-cpu-model-cache
+      storageUri: hf://Qwen/Qwen2.5-1.5B-Instruct:989aa7980e4cf806f80c7fef2b1adb7bc71aa306
       args:
       - --trust-remote-code
       - --enable-auto-tool-choice
