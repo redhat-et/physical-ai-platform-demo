@@ -4,6 +4,7 @@ metadata:
   name: qwen3-omni
   namespace: physical-ai-models
   labels:
+    networking.kserve.io/visibility: cluster-local
     opendatahub.io/dashboard: "true"
     opendatahub.io/genai-asset: "true"
   annotations:
@@ -13,11 +14,16 @@ metadata:
     physical-ai.io/output-kind: chat
 spec:
   predictor:
-    minReplicas: 0
+    minReplicas: 1
+    maxReplicas: 1
     deploymentStrategy:
       type: Recreate
     nodeSelector:
       nvidia.com/gpu.product: NVIDIA-L40S
+    tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
     volumes:
     - name: dshm
       emptyDir:
@@ -30,7 +36,7 @@ spec:
       modelFormat:
         name: pytorch
       runtime: vllm-omni-runtime
-      storageUri: pvc://qwen3-omni-model-cache
+      storageUri: hf://Qwen/Qwen3-Omni-30B-A3B-Instruct:26291f793822fb6be9555850f06dfe95f2d7e695
       args:
       - --trust-remote-code
       - --deploy-config=/etc/vllm-omni/deploy-config.yaml
