@@ -149,25 +149,16 @@ the LIBERO checkpoint's cameras, state, and actions. Use the same Omni runtime
 for another supported π0.5 checkpoint with its own artifact and deploy config.
 Do not reuse the LIBERO metadata preparation script for DROID.
 
-Create an InferenceService that selects the shared `vllm-omni-runtime` and
-requests one NVIDIA L40S. Set `storageUri` to the LIBERO checkpoint, for example
-`hf://lerobot/pi05_libero_base:5fcf06fc42b6717e22ab885fd381a096574b12c7`.
-KServe stages the artifact under `/mnt/models`; the runtime does not download
-its own fixed checkpoint. This does not change either existing π0.5 endpoint.
-
-Mount the `pi05-libero-omni-config` ConfigMap read-only at `/etc/pi05-libero`
-using `spec.predictor.volumes` and `spec.predictor.model.volumeMounts`. Set
-`OMNI_PREPARE_CHECKPOINT=/etc/pi05-libero/prepare_pi05_libero.py` in
-`spec.predictor.model.env` and add these `spec.predictor.model.args`:
-
-```yaml
-- --deploy-config=/etc/pi05-libero/pi05-libero-deploy.yaml
-- --enforce-eager
-- --disable-log-stats
-```
-
-Set `HF_TOKEN` from the `huggingface-token` Secret for access to the gated
+Apply the [example InferenceService](../pi05-libero/inferenceservice.example.yaml)
+after installing the shared `vllm-omni-runtime` and `pi05-libero-omni-config`.
+The example selects one NVIDIA L4 and mounts 1 GiB of memory-backed storage
+at `/dev/shm`. The default 64 MiB could not satisfy the runtime's 240 MiB
+allocation at startup. KServe stages the pinned Hugging Face checkpoint at
+`/mnt/models`; the `huggingface-token` Secret must grant access to the gated
 `google/paligemma-3b-pt-224` tokenizer.
+
+The default overlays do not include this endpoint. Delete the example
+InferenceService when the session ends to release its GPU.
 
 Use the OpenPI WebSocket at `/v1/realtime/robot/openpi`, not the legacy route at
 `/`. Send the two LIBERO camera keys (`observation.images.image` and
@@ -176,8 +167,8 @@ Use the OpenPI WebSocket at `/v1/realtime/robot/openpi`, not the legacy route at
 does not ship normalization statistics; inputs and outputs stay in model space.
 Verify action agreement in simulation before using the endpoint for control.
 
-The ServingRuntime alone creates no endpoint. Verify WebSocket upgrades and
-cold starts before enabling scale-to-zero for this runtime.
+Verify WebSocket upgrades through your client route and cold starts before
+enabling scale-to-zero.
 
 ### Existing runtimes
 

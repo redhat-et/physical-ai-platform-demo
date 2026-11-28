@@ -1,0 +1,62 @@
+# Apply explicitly for a LIBERO session; the default overlays do not deploy it.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: pi05-libero
+  namespace: physical-ai-models
+  labels:
+    networking.kserve.io/visibility: cluster-local
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    serving.kserve.io/autoscalerClass: external
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-L4
+    tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+    volumes:
+    - name: profile
+      configMap:
+        name: pi05-libero-omni-config
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 1Gi
+    model:
+      modelFormat:
+        name: pytorch
+      runtime: vllm-omni-runtime
+      storageUri: hf://lerobot/pi05_libero_base:5fcf06fc42b6717e22ab885fd381a096574b12c7
+      args:
+      - --deploy-config=/etc/pi05-libero/pi05-libero-deploy.yaml
+      - --enforce-eager
+      - --disable-log-stats
+      env:
+      - name: OMNI_PREPARE_CHECKPOINT
+        value: /etc/pi05-libero/prepare_pi05_libero.py
+      - name: HF_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: huggingface-token
+            key: HF_TOKEN
+      volumeMounts:
+      - name: profile
+        mountPath: /etc/pi05-libero
+        readOnly: true
+      - name: dshm
+        mountPath: /dev/shm
+      resources:
+        requests:
+          cpu: "2"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 48Gi
+          nvidia.com/gpu: "1"
